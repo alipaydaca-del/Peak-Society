@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://www.youtube.com https://i.ytimg.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https://i.ytimg.com https://img.youtube.com https://*.supabase.co data: blob:; frame-src https://www.youtube.com;" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <meta name="description" content="Peak Society — Page Not Found" />
+  <title>404 Page Not Found || Peak Society</title>
+  <link rel="icon" type="image/png" href="assets/PS.png">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- ─── NOISE OVERLAY ─── -->
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- ─── CURSOR ─── -->
+  <div class="custom-cursor" id="cursor" aria-hidden="true"></div>
+  <div class="custom-cursor-dot" id="cursorDot" aria-hidden="true"></div>
+
+  <!-- ─── NAVIGATION ─── -->
+  <nav id="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo" aria-label="Peak Society Home">
+        <span class="logo-peak">PEAK</span>
+        <span class="logo-society">SOCIETY</span>
+        <span class="logo-tag">|| YTA</span>
+      </a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#channels">Channels</a></li>
+        <li><a href="index.html#announcements">News</a></li>
+        <li><a href="index.html#creator">Creator</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="index.html" class="btn-ghost" aria-label="Sign in to community">Sign In</a>
+        <a href="https://discord.com/invite/PC37ybau37" target="_blank" rel="noopener noreferrer" class="btn-primary nav-discord">Join Discord</a>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <a href="index.html#about">About</a>
+      <a href="index.html#channels">Channels</a>
+      <a href="index.html#announcements">News</a>
+      <a href="index.html#creator">Creator</a>
+      <a href="index.html" class="btn-ghost">Sign In</a>
+      <a href="https://discord.com/invite/PC37ybau37" target="_blank" rel="noopener noreferrer" class="btn-primary">Join Discord</a>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <section id="home" class="hero" aria-label="Hero section" style="min-height: 100vh; display: flex; justify-content: center; align-items: center; text-align: center;">
+    <div class="hero-bg-grid" aria-hidden="true"></div>
+    <div class="hero-content" style="max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; align-items: center;">
+      <p class="hero-eyebrow">ERROR 404</p>
+      <h1 class="hero-title">
+        <span class="title-line" data-text="PAGE">PAGE</span>
+        <span class="title-line accent" data-text="NOT FOUND">NOT FOUND</span>
+      </h1>
+      <p class="hero-subtitle">The page you are looking for does not exist, has been removed, or is temporarily unavailable.</p>
+      <div class="hero-cta-group" style="justify-content: center;">
+        <a href="index.html" class="btn-primary btn-lg">Return Home</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="site-footer" role="contentinfo" style="margin-top: 0;">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span class="logo-peak">PEAK</span><span class="logo-society">SOCIETY</span><span class="logo-tag"> || YTA</span>
+        <p>Free YouTube Shorts automation community.</p>
+      </div>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="index.html#about">About</a>
+        <a href="index.html#channels">Channels</a>
+        <a href="index.html#announcements">News</a>
+        <a href="https://discord.com/invite/PC37ybau37" target="_blank" rel="noopener noreferrer">YouTube</a>
+        <a href="https://discord.gg/peaksociety" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+      <div class="footer-bottom">
+        <span>© 2025 Peak Society. All rights reserved.</span>
+        <a href="index.html" class="btn-ghost btn-sm" id="footerAdminBtn">Admin Login</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Cursor
+      const cursor = document.getElementById('cursor');
+      const cursorDot = document.getElementById('cursorDot');
+      let cursorX = 0, cursorY = 0;
+      let cursorTargetX = 0, cursorTargetY = 0;
+
+      if (cursor && cursorDot) {
+        document.addEventListener('mousemove', e => {
+          cursorTargetX = e.clientX;
+          cursorTargetY = e.clientY;
+          cursorDot.style.left = e.clientX + 'px';
+          cursorDot.style.top = e.clientY + 'px';
+        });
+
+        (function animateCursor() {
+          cursorX += (cursorTargetX - cursorX) * 0.12;
+          cursorY += (cursorTargetY - cursorY) * 0.12;
+          cursor.style.left = cursorX + 'px';
+          cursor.style.top = cursorY + 'px';
+          requestAnimationFrame(animateCursor);
+        })();
+
+        document.querySelectorAll('a, button').forEach(el => {
+          el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hovering'));
+          el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hovering'));
+        });
+      }
+
+      // Mobile Nav
+      const hamburger = document.getElementById('navHamburger');
+      const mobileMenu = document.getElementById('navMobile');
+      if (hamburger && mobileMenu) {
+        const toggleMenu = () => {
+          const open = mobileMenu.classList.toggle('open');
+          hamburger.setAttribute('aria-expanded', open);
+          mobileMenu.setAttribute('aria-hidden', !open);
+        };
+        hamburger.addEventListener('click', toggleMenu);
+        mobileMenu.querySelectorAll('a').forEach(link => {
+          link.addEventListener('click', () => {
+            if (mobileMenu.classList.contains('open')) toggleMenu();
+          });
+        });
+      }
+
+      // Navbar scroll
+      window.addEventListener('scroll', () => {
+        document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
+      });
+
+
+    });
+  </script>
+</body>
+</html>

@@ -21,10 +21,10 @@ const closeForgotPasswordModal = () => closeModal('forgotPasswordModal');
 
 /* ── Send reset email ────────────────────────── */
 document.getElementById('fpSubmit').addEventListener('click', async () => {
-  const errEl     = document.getElementById('fpError');
+  const errEl = document.getElementById('fpError');
   const successEl = document.getElementById('fpSuccess');
-  const btn       = document.getElementById('fpSubmit');
-  const email     = document.getElementById('fpEmail').value.trim();
+  const btn = document.getElementById('fpSubmit');
+  const email = document.getElementById('fpEmail').value.trim();
 
   errEl.setAttribute('hidden', '');
   successEl.setAttribute('hidden', '');
@@ -76,11 +76,11 @@ const openResetPasswordModal = () => {
 };
 
 document.getElementById('rpSubmit').addEventListener('click', async () => {
-  const errEl     = document.getElementById('rpError');
+  const errEl = document.getElementById('rpError');
   const successEl = document.getElementById('rpSuccess');
-  const btn       = document.getElementById('rpSubmit');
-  const newPass   = document.getElementById('rpNewPassword').value;
-  const confirm   = document.getElementById('rpConfirmPassword').value;
+  const btn = document.getElementById('rpSubmit');
+  const newPass = document.getElementById('rpNewPassword').value;
+  const confirm = document.getElementById('rpConfirmPassword').value;
 
   errEl.setAttribute('hidden', '');
   successEl.setAttribute('hidden', '');
@@ -161,7 +161,17 @@ document.getElementById('rpClose').addEventListener('click', () => closeModal('r
       errEl.removeAttribute('hidden');
       openModal('forgotPasswordModal');
     });
+  } else if (params.type === 'recovery') {
+    // Force open the reset password modal manually.
+    // The Supabase SDK logs the user in, but its PASSWORD_RECOVERY event might be swallowed 
+    // if we clear the hash from the URL before the onAuthStateChange listener is registered.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (typeof openResetPasswordModal === 'function') {
+          openResetPasswordModal();
+        }
+      }, 100);
+    });
   }
-  // If params contain access_token + type=recovery, Supabase SDK will
-  // automatically exchange it and fire PASSWORD_RECOVERY via onAuthStateChange.
+  // Supabase SDK will automatically exchange the token and log the user in.
 })();

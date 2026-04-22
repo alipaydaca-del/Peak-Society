@@ -106,16 +106,13 @@ const Auth = (() => {
     let email = usernameInput;
 
     if (!isEmail) {
-      const { data, error } = await sbClient
-        .from('users')
-        .select('email')
-        .ilike('username', usernameInput)
-        .maybeSingle();
+      const { data: emailRes, error } = await sbClient
+        .rpc('get_email_by_username', { p_username: usernameInput });
 
-      if (error || !data || !data.email) {
+      if (error || !emailRes) {
         return { error: { message: 'Username not yet linked. Please sign in with your email address instead.' } };
       }
-      email = data.email;
+      email = emailRes;
     }
 
     const result = await sbClient.auth.signInWithPassword({ email, password });
