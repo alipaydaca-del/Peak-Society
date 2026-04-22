@@ -8,6 +8,7 @@
     "build": "node -e \"const fs=require('fs');fs.writeFileSync('config.js','window.__CONFIG__='+JSON.stringify({SUPABASE_URL:process.env.SUPABASE_URL||'',SUPABASE_ANON_KEY:process.env.SUPABASE_ANON_KEY||''})+';');\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.104.0",
     "dotenv": "^17.4.2"
   }
 }

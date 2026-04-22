@@ -44,6 +44,10 @@ const Auth = (() => {
 
     // React to sign-in, sign-out, token refresh, etc.
     sbClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        if (typeof openResetPasswordModal === 'function') openResetPasswordModal();
+        return;
+      }
       if (session) {
         _user = session.user;
         await _fetchProfile(_user.id);
@@ -102,16 +106,13 @@ const Auth = (() => {
     let email = usernameInput;
 
     if (!isEmail) {
-      const { data, error } = await sbClient
-        .from('users')
-        .select('email')
-        .ilike('username', usernameInput)
-        .maybeSingle();
+      const { data: emailRes, error } = await sbClient
+        .rpc('get_email_by_username', { p_username: usernameInput });
 
-      if (error || !data || !data.email) {
+      if (error || !emailRes) {
         return { error: { message: 'Username not yet linked. Please sign in with your email address instead.' } };
       }
-      email = data.email;
+      email = emailRes;
     }
 
     const result = await sbClient.auth.signInWithPassword({ email, password });
@@ -124,6 +125,21 @@ const Auth = (() => {
     _syncStore();
 
     return result;
+  };
+
+  /* ── forgotPassword(email) ───────────────────── */
+  const forgotPassword = async (email) => {
+    if (!sbClient) return { error: { message: 'Supabase not connected.' } };
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { data, error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo });
+    return { data, error };
+  };
+
+  /* ── updatePassword(newPassword) ─────────────── */
+  const updatePassword = async (newPassword) => {
+    if (!sbClient) return { error: { message: 'Supabase not connected.' } };
+    const { data, error } = await sbClient.auth.updateUser({ password: newPassword });
+    return { data, error };
   };
 
   /* ── signOut ─────────────────────────────────── */
@@ -153,5 +169,5 @@ const Auth = (() => {
     return true;
   };
 
-  return { init, signUp, signIn, signOut, getUser, getProfile, getRole, onChange, requireRole };
+  return { init, signUp, signIn, signOut, forgotPassword, updatePassword, getUser, getProfile, getRole, onChange, requireRole };
 })();

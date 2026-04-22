@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roadmap || Peak Society</title>
+  <link rel="icon" type="image/png" href="assets/PS.png">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+</head>
+<body class="bg-primary text-white">
+
+  <!-- ─── NOISE OVERLAY ─── -->
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- ─── CURSOR ─── -->
+  <div class="custom-cursor" id="cursor" aria-hidden="true"></div>
+  <div class="custom-cursor-dot" id="cursorDot" aria-hidden="true"></div>
+
+  <!-- ─── NAVBAR ─── -->
+  <nav id="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo" aria-label="Peak Society Home">
+        <span class="logo-peak">PEAK</span>
+        <span class="logo-society">SOCIETY</span>
+        <span class="logo-tag">|| YTA</span>
+      </a>
+      <ul class="nav-links" role="list">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="roadmap.html" style="color:var(--primary); font-weight:700;">Roadmap</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#channels">Channels</a></li>
+        <li><a href="index.html#announcements">News</a></li>
+      </ul>
+      <div class="nav-actions">
+        <!-- Auth buttons controlled by app.js -->
+        <button class="btn-ghost" id="navSignIn" aria-label="Sign in">Sign In</button>
+
+        <div class="notification-wrapper" id="notificationWrapper" style="display: none; position: relative;">
+          <button class="nav-bell" id="navBell" aria-label="Notifications" title="Notifications">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span class="notification-badge" id="notificationBadge" hidden>0</span>
+          </button>
+          <div class="notification-dropdown" id="notificationDropdown" hidden aria-live="polite">
+            <div class="notification-header">
+              <h4>Notifications</h4>
+              <button id="markAllReadBtn" class="btn-ghost"
+                style="padding:0.2rem 0.5rem; font-size:0.75rem; border:none;">Mark all as read</button>
+            </div>
+            <div class="notification-list" id="notificationList"></div>
+          </div>
+        </div>
+
+        <button class="nav-profile-widget" id="navProfileWidget" style="display: none;" aria-label="User Profile"
+          title="My Profile">
+          <div class="nav-profile-avatar" id="navProfileAvatar"></div>
+        </button>
+      </div>
+
+      <button class="nav-hamburger" id="navHamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <a href="index.html">Home</a>
+      <a href="roadmap.html" style="color:var(--primary); font-weight:700;">Roadmap</a>
+      <a href="index.html#about">About</a>
+      <a href="index.html#channels">Channels</a>
+      <a href="index.html#announcements">News</a>
+      <button class="btn-ghost" id="navSignInMobile">Sign In</button>
+    </div>
+  </nav>
+
+  <main style="max-width: 1200px; margin: 120px auto 4rem; padding: 0 5%;" id="roadmapContainer">
+    <div style="text-align:center; margin-bottom: 3rem;">
+        <h1 style="font-family:'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing:2px; margin-bottom:1rem; text-transform:uppercase;">The <span class="text-primary">Roadmap</span></h1>
+        <p style="color:var(--mid); max-width:600px; margin:0 auto; font-size:1.1rem;">Follow the ultimate path to mastering YouTube Automation. Complete a tier to unlock the next level.</p>
+    </div>
+
+    <!-- Tabs Container -->
+    <div class="roadmap-tabs" style="display:flex; justify-content:center; gap:1rem; margin-bottom: 3rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">
+        <button class="btn-ghost roadmap-tab active" data-tab="Beginner" style="font-size:1.2rem;">Beginner</button>
+        <button class="btn-ghost roadmap-tab" data-tab="Intermediate" style="font-size:1.2rem;">Intermediate</button>
+        <button class="btn-ghost roadmap-tab" data-tab="Advanced" style="font-size:1.2rem;">Advanced</button>
+    </div>
+
+    <!-- Roadmap Content -->
+    <div id="roadmapContent" style="min-height: 400px; position:relative;">
+        <!-- Loading state -->
+        <h3 style="text-align:center; color:var(--mid); font-family:'Bebas Neue';">Loading contents...</h3>
+    </div>
+  </main>
+
+
+
+  <!-- View Lesson Modal -->
+  <div class="modal-backdrop" id="viewLessonModal" role="dialog" aria-modal="true" aria-label="View Lesson" hidden>
+    <div class="modal modal-wide" style="max-height:85vh; overflow-y:auto; max-width:800px; position:relative; background: #0a0a0a; border:1px solid rgba(255,255,255,0.1);">
+      <button class="modal-close" id="viewLessonClose" aria-label="Close" style="top:15px; right:15px; background:rgba(0,0,0,0.5); border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; padding:0; z-index:100;">&times;</button>
+      <div class="modal-body" style="padding-top: 2rem;">
+        <div style="margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom:1rem;">
+            <div style="color:var(--primary); font-family: 'DM Mono', monospace; font-size:0.9rem; margin-bottom:0.5rem;" id="vlStepSection">1.0 / Setup</div>
+            <h2 id="vlTitle" style="font-family:'Bebas Neue', sans-serif; font-size:2.5rem; letter-spacing:1px; line-height:1.1;">Lesson Title</h2>
+        </div>
+        
+        <div id="vlContent" style="font-family: 'DM Sans', sans-serif; line-height: 1.6; color: #ddd; font-size:1.05rem;">
+            <!-- Lesson content and video injected here -->
+        </div>
+
+        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
+            <p style="color:var(--mid); font-size:0.95rem;">Completed learning?</p>
+            <button class="btn-primary" id="vlCompleteBtn" style="padding:0.6rem 2rem;">Mark as Completed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js?v=5"></script>
+  <script src="auth.js"></script>
+  <script src="app.js?v=9"></script>
+  <script src="roadmap.js"></script>
+</body>
+</html>

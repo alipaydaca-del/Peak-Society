@@ -50,6 +50,7 @@ try {
   // Ensure the browser loaded window.supabase before app.js
   if (window.supabase) {
     sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.sbClient = sbClient;
     console.log("Supabase initialized successfully.");
   } else {
     console.error("Supabase SDK not found on window object. Is it loaded in index.html?");
@@ -87,6 +88,8 @@ const Store = (() => {
     ],
     reports: [],
     notifications: [],
+    lessons: [],
+    user_progress: [],
     session: null,
     adminSession: null,
   };
@@ -102,23 +105,15 @@ const Store = (() => {
     try { localStorage.setItem('ps_' + key, JSON.stringify(val)); } catch { }
   };
 
-  const set = async (key, val) => {
+  const set = async (key, val, skipDb = false) => {
     _localSet(key, val);
     // Push changes to Supabase async
-    if (sbClient && key !== 'session' && key !== 'adminSession') {
+    if (!skipDb && sbClient && key !== 'session' && key !== 'adminSession') {
       try {
-        if (key === 'users') {
-          // Users are updated directly via targeted sbClient.from('users').update(...).eq('id', ...)
-          // Mass upsert is skipped — RLS only allows users to update their own row
-        } else if (key === 'reports') {
-          // Explicit requirement: Report Logs logic 
-          for (const r of val) { await sbClient.from('reports').upsert(r); }
-        } else if (key === 'posts') {
-          for (const p of val) { await sbClient.from('posts').upsert({ id: p.id, userId: p.userId, category: p.category, title: p.title, content: p.body, image: p.image, likes: p.likes, commentsCount: p.comments, likedBy: p.likedBy || [], created_at: p.date }); }
-        } else if (key === 'comments') {
-          for (const c of val) { await sbClient.from('comments').upsert(c); }
-        } else if (key === 'announcements') {
-          for (const a of val) { await sbClient.from('announcements').upsert(a); }
+        if (key === 'users' || key === 'reports' || key === 'posts' || key === 'comments' || key === 'announcements' || key === 'lessons' || key === 'user_progress') {
+          // Architecture Change: We no longer mass-upsert the entire local array to Supabase.
+          // Single-record additions/deletions must be handled individually by calling sbClient.from(...).insert/upsert directly
+          // from the UI event handlers. The real-time listener will sync it back to Store cache.
         } else {
           // Keep generic store logic for the rest as decided
           await sbClient.from('store').upsert({ id: key, data: JSON.stringify(val) });
@@ -129,7 +124,7 @@ const Store = (() => {
     }
   };
 
-  // Init defaults if not set locally
+  // Init defaults if not set locally 
   Object.keys(defaults).forEach(k => {
     if (localStorage.getItem('ps_' + k) === null) _localSet(k, defaults[k]);
   });
@@ -138,105 +133,114 @@ const Store = (() => {
   if (sbClient) {
     // 1. Fetch initial explicit tables
     sbClient.from('users').select('*').then(({ data, error }) => {
-       if (!error && data && data.length > 0) {
-           _localSet('users', data);
-           window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'users' }));
-       } else if (!error && data && data.length === 0) {
-           defaults.users.forEach(u => sbClient.from('users').upsert(u).catch(e => {}));
-       }
+      if (!error && data && data.length > 0) {
+        _localSet('users', data);
+        window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'users' }));
+      } else if (!error && data && data.length === 0) {
+        defaults.users.forEach(u => sbClient.from('users').upsert(u).catch(e => { }));
+      }
     });
 
     sbClient.from('reports').select('*').then(({ data, error }) => {
-       if (!error && data) {
-           _localSet('reports', data);
-           window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'reports' }));
-       }
+      if (!error && data) {
+        _localSet('reports', data);
+        window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'reports' }));
+      }
     });
 
     ['posts', 'comments', 'announcements', 'likes'].forEach(cat => {
-        sbClient.from(cat).select('*').then(({ data, error }) => {
-            if (error) { console.error(`Fetch error for ${cat}:`, error); return; }
-            if (data) { 
-                if (cat === 'comments') console.log('COMMENTS FETCHED:', data);
-                if (cat === 'posts') data = data.map(p => ({...p, body: p.content || p.body, comments: p.commentsCount ?? p.comments, date: p.created_at || p.date, likedBy: p.likedBy || [] }));
-                if (cat === 'announcements') data = data.map(a => ({...a, subject: a.title || a.subject, body: a.content || a.body, authorId: a.author || a.authorId, date: a.created_at || a.date}));
-                if (cat === 'comments')      data = data.map(c => ({...c, postId: c.postId, userId: c.userId, body: c.content || c.body, date: c.created_at || c.date}));
-                if (cat === 'likes')         data = data.map(l => ({...l, postId: l.postId || l.postid, userId: l.userId || l.userid}));
-                _localSet(cat, data); 
-                window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: cat }));
-            }
-        });
+      sbClient.from(cat).select('*').then(({ data, error }) => {
+        if (error) { console.error(`Fetch error for ${cat}:`, error); return; }
+        if (data) {
+          if (cat === 'comments') console.log('COMMENTS FETCHED:', data);
+          if (cat === 'posts') data = data.map(p => ({ ...p, body: p.content || p.body, comments: p.commentsCount ?? p.comments, date: p.created_at || p.date, likedBy: p.likedBy || [] }));
+          if (cat === 'announcements') data = data.map(a => ({ ...a, subject: a.title || a.subject, body: a.content || a.body, authorId: a.author || a.authorId, date: a.created_at || a.date }));
+          if (cat === 'comments') data = data.map(c => ({ ...c, postId: c.postId, userId: c.userId, body: c.content || c.body, date: c.created_at || c.date }));
+          if (cat === 'likes') data = data.map(l => ({ ...l, postId: l.postId || l.postid, userId: l.userId || l.userid }));
+          _localSet(cat, data);
+          window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: cat }));
+        }
+      });
+    });
+
+    ['lessons', 'user_progress'].forEach(cat => {
+      sbClient.from(cat).select('*').then(({ data, error }) => {
+        if (!error && data) {
+          _localSet(cat, data);
+          window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: cat }));
+        }
+      });
     });
 
     // Fetch initial store subsets (legacy non-relational values)
     ['auditLog', 'notifications'].forEach(k => {
-       sbClient.from('store').select('*').eq('id', k).maybeSingle().then(({ data, error }) => {
-           if (!error && data && data.data) {
-              try { _localSet(k, JSON.parse(data.data)); } catch(e) {}
-              window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: k }));
-           } else if (!data) {
-              sbClient.from('store').upsert({ id: k, data: JSON.stringify(get(k)) }).catch(e => {});
-           }
-       });
+      sbClient.from('store').select('*').eq('id', k).maybeSingle().then(({ data, error }) => {
+        if (!error && data && data.data) {
+          try { _localSet(k, JSON.parse(data.data)); } catch (e) { }
+          window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: k }));
+        } else if (!data) {
+          sbClient.from('store').upsert({ id: k, data: JSON.stringify(get(k)) }).then(({error}) => { });
+        }
+      });
     });
 
     // 2. Realtime Subscriptions
     sbClient.channel('public:users')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, payload => {
-          sbClient.from('users').select('*').then(({ data }) => {
-              if (data) Object.assign(localStorage, { ['ps_users']: JSON.stringify(data) });
-              window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'users' }));
-          });
+        sbClient.from('users').select('*').then(({ data }) => {
+          if (data) Object.assign(localStorage, { ['ps_users']: JSON.stringify(data) });
+          window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'users' }));
+        });
       }).subscribe();
-      
+
     sbClient.channel('public:reports')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, payload => {
-          sbClient.from('reports').select('*').then(({ data }) => {
-              if (data) _localSet('reports', data);
-              window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'reports' }));
-          });
+        sbClient.from('reports').select('*').then(({ data }) => {
+          if (data) _localSet('reports', data);
+          window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'reports' }));
+        });
       }).subscribe();
 
     sbClient.channel('public:dynamic')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, payload => {
-          sbClient.from('posts').select('*').then(({ data }) => {
-              if (data) _localSet('posts', data.map(p => ({...p, body: p.content || p.body, comments: p.commentsCount ?? p.comments, date: p.created_at || p.date, likedBy: p.likedBy || [] }))); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'posts' }));
-          });
+        sbClient.from('posts').select('*').then(({ data }) => {
+          if (data) _localSet('posts', data.map(p => ({ ...p, body: p.content || p.body, comments: p.commentsCount ?? p.comments, date: p.created_at || p.date, likedBy: p.likedBy || [] }))); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'posts' }));
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, payload => {
-          sbClient.from('comments').select('*').then(({ data }) => {
-              if (data) {
-                  data = data.map(c => ({...c, postId: c.postId, userId: c.userId, body: c.content || c.body, date: c.created_at || c.date}));
-                  _localSet('comments', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'comments' }));
-              }
-          });
+        sbClient.from('comments').select('*').then(({ data }) => {
+          if (data) {
+            data = data.map(c => ({ ...c, postId: c.postId, userId: c.userId, body: c.content || c.body, date: c.created_at || c.date }));
+            _localSet('comments', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'comments' }));
+          }
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, payload => {
-          sbClient.from('likes').select('*').then(({ data }) => {
-              if (data) {
-                  data = data.map(l => ({...l, postId: l.postId || l.postid, userId: l.userId || l.userid}));
-                  _localSet('likes', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'likes' }));
-              }
-          });
+        sbClient.from('likes').select('*').then(({ data }) => {
+          if (data) {
+            data = data.map(l => ({ ...l, postId: l.postId || l.postid, userId: l.userId || l.userid }));
+            _localSet('likes', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'likes' }));
+          }
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, payload => {
-          sbClient.from('announcements').select('*').then(({ data }) => {
-              if (data) {
-                  data = data.map(a => ({...a, subject: a.title || a.subject, body: a.content || a.body, authorId: a.author || a.authorId, date: a.created_at || a.date}));
-                  _localSet('announcements', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'announcements' }));
-              }
-          });
+        sbClient.from('announcements').select('*').then(({ data }) => {
+          if (data) {
+            data = data.map(a => ({ ...a, subject: a.title || a.subject, body: a.content || a.body, authorId: a.author || a.authorId, date: a.created_at || a.date }));
+            _localSet('announcements', data); window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: 'announcements' }));
+          }
+        });
       }).subscribe();
 
     sbClient.channel('public:store')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store' }, payload => {
-         const row = payload.new;
-         if (row && row.id) {
-             try {
-                _localSet(row.id, JSON.parse(row.data));
-                window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: row.id }));
-             } catch(e) {}
-         }
+        const row = payload.new;
+        if (row && row.id) {
+          try {
+            _localSet(row.id, JSON.parse(row.data));
+            window.dispatchEvent(new CustomEvent('ps_db_updated', { detail: row.id }));
+          } catch (e) { }
+        }
       }).subscribe();
   }
 
@@ -468,24 +472,28 @@ document.querySelectorAll('a, button, [data-channel], .channel-item, .forum-post
    NAVBAR
 ───────────────────────────────────────────── */
 window.addEventListener('scroll', () => {
-  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
+  const nav = document.getElementById('navbar');
+  if (nav) nav.classList.toggle('scrolled', window.scrollY > 40);
 });
 
 const hamburger = document.getElementById('navHamburger');
 const mobileMenu = document.getElementById('navMobile');
 const toggleMenu = () => {
+  if (!mobileMenu || !hamburger) return;
   const open = mobileMenu.classList.toggle('open');
   hamburger.setAttribute('aria-expanded', open);
   mobileMenu.setAttribute('aria-hidden', !open);
 };
-hamburger.addEventListener('click', toggleMenu);
+if (hamburger) hamburger.addEventListener('click', toggleMenu);
 
 // Close menu when a link is clicked
-mobileMenu.querySelectorAll('a, button').forEach(el => {
-  el.addEventListener('click', () => {
-    if (mobileMenu.classList.contains('open')) toggleMenu();
+if (mobileMenu) {
+  mobileMenu.querySelectorAll('a, button').forEach(el => {
+    el.addEventListener('click', () => {
+      if (mobileMenu.classList.contains('open')) toggleMenu();
+    });
   });
-});
+}
 
 /* ─────────────────────────────────────────────
    COUNTER ANIMATION
@@ -673,6 +681,7 @@ const previewName = document.getElementById('previewName');
 const previewMessages = document.getElementById('previewMessages');
 
 const renderChannelPreview = (channel) => {
+  if (!previewName || !previewMessages) return;
   previewName.textContent = channel;
   const data = channelData[channel] || { messages: [{ author: 'Gelo', role: 'Owner', avatar: '👑', text: 'Join Discord to see this channel!' }] };
   previewMessages.innerHTML = data.messages.map(m => `
@@ -708,25 +717,27 @@ const ytVideos = [
 ];
 
 const creatorVideos = document.getElementById('creatorVideos');
-creatorVideos.innerHTML = ytVideos.map(v => `
-  <a href="https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}" target="_blank" rel="noopener noreferrer" class="yt-card reveal">
-    <div class="yt-thumb">
-      <img src="https://img.youtube.com/vi/${encodeURIComponent(v.id)}/mqdefault.jpg" alt="${sanitize(v.title)}" loading="lazy" />
-      <div class="yt-play-btn" aria-hidden="true">
-        <div class="yt-play-icon">▶</div>
+if (creatorVideos) {
+  creatorVideos.innerHTML = ytVideos.map(v => `
+    <a href="https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}" target="_blank" rel="noopener noreferrer" class="yt-card reveal">
+      <div class="yt-thumb">
+        <img src="https://img.youtube.com/vi/${encodeURIComponent(v.id)}/mqdefault.jpg" alt="${sanitize(v.title)}" loading="lazy" />
+        <div class="yt-play-btn" aria-hidden="true">
+          <div class="yt-play-icon">▶</div>
+        </div>
       </div>
-    </div>
-    <div class="yt-card-info">
-      <div class="yt-card-title">${sanitize(v.title)}</div>
-      <div class="yt-card-meta">${sanitize(v.views)} · ${sanitize(v.date)}</div>
-    </div>
-  </a>
-`).join('');
+      <div class="yt-card-info">
+        <div class="yt-card-title">${sanitize(v.title)}</div>
+        <div class="yt-card-meta">${sanitize(v.views)} · ${sanitize(v.date)}</div>
+      </div>
+    </a>
+  `).join('');
 
-ytVideos.forEach((_, i) => {
-  const el = creatorVideos.children[i];
-  if (el) { el.classList.add('reveal'); revealObserver.observe(el); }
-});
+  ytVideos.forEach((_, i) => {
+    const el = creatorVideos.children[i];
+    if (el) { el.classList.add('reveal'); revealObserver.observe(el); }
+  });
+}
 
 /* ─────────────────────────────────────────────
    ANNOUNCEMENTS RENDER
@@ -740,6 +751,7 @@ const stripRichHTML = (html) => {
 
 const renderAnnouncements = () => {
   const list = document.getElementById('announcementsList');
+  if (!list) return;
   const announcements = Store.get('announcements');
   const users = Store.get('users');
   if (!announcements.length) {
@@ -749,12 +761,12 @@ const renderAnnouncements = () => {
 
   const reversed = announcements.slice().reverse();
   const visible = showAllAnnouncements ? reversed : reversed.slice(0, 3);
-  
+
   let htmlOutput = visible.map(a => {
     const author = users.find(u => u.username === a.authorId);
     const date = new Date(a.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const userRole = author && author.role === 'owner' ? 'Owner' : 'Staff';
-    
+
     const plainText = stripRichHTML(a.body);
     const isTruncated = plainText.length > 200;
     const previewBody = isTruncated ? plainText.slice(0, 200) + '...' : plainText;
@@ -858,15 +870,18 @@ const renderPostCards = () => {
   }).join('');
 };
 
-document.querySelectorAll('.forum-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.forum-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
-    tab.classList.add('active');
-    tab.setAttribute('aria-selected', 'true');
-    currentTab = tab.dataset.tab;
-    renderForum();
+const forumTabs = document.querySelectorAll('.forum-tab');
+if (forumTabs.length > 0) {
+  forumTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.forum-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+      currentTab = tab.dataset.tab;
+      renderForum();
+    });
   });
-});
+}
 
 renderForum();
 
@@ -887,7 +902,9 @@ const closeModal = (id) => {
 
 const setupModalClose = (backdropId, closeBtnId) => {
   const backdrop = document.getElementById(backdropId);
-  document.getElementById(closeBtnId).addEventListener('click', () => closeModal(backdropId));
+  const closeBtn = document.getElementById(closeBtnId);
+  if (!backdrop) return;
+  if (closeBtn) closeBtn.addEventListener('click', () => closeModal(backdropId));
   backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(backdropId); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !backdrop.hasAttribute('hidden')) closeModal(backdropId); });
 };
@@ -904,7 +921,7 @@ setupModalClose('publicProfileModal', 'publicProfileClose');
 
 window.openPublicProfile = (userId) => {
   const users = Store.get('users');
-  const targetUser = users.find(u => u.id === userId);
+  const targetUser = users.find(u => u.username === userId || u.id === userId);
   if (!targetUser) return;
 
   const displayName = targetUser.displayName || targetUser.username;
@@ -975,11 +992,24 @@ const openAuthModal = (startInRegister = false) => {
   document.getElementById('authUsername').value = '';
   document.getElementById('authPassword').value = '';
   document.getElementById('authError').setAttribute('hidden', '');
+  document.getElementById('authSuccess')?.setAttribute('hidden', '');
   openModal('authModal');
 };
 
 // Nav sign-in / sign-out toggle
-document.getElementById('navSignIn').addEventListener('click', async () => {
+const navSignIn = document.getElementById('navSignIn');
+if (navSignIn) {
+  navSignIn.addEventListener('click', async () => {
+    if (Store.get('session')) {
+      if (await customConfirm('Are you sure you want to sign out?', 'Sign Out')) {
+        signOut();
+      }
+    } else {
+      openAuthModal();
+    }
+  });
+}
+document.getElementById('navSignInMobile')?.addEventListener('click', async () => {
   if (Store.get('session')) {
     if (await customConfirm('Are you sure you want to sign out?', 'Sign Out')) {
       signOut();
@@ -988,13 +1018,11 @@ document.getElementById('navSignIn').addEventListener('click', async () => {
     openAuthModal();
   }
 });
-document.getElementById('navSignInMobile')?.addEventListener('click', async () => {
-  if (Store.get('session')) {
-    if (await customConfirm('Are you sure you want to sign out?', 'Sign Out')) {
-      signOut();
-    }
-  } else {
-    openAuthModal();
+
+document.getElementById('profileSignOutBtn')?.addEventListener('click', async () => {
+  if (await customConfirm('Are you sure you want to log out?', 'Log Out')) {
+    closeModal('profileModal');
+    signOut();
   }
 });
 
@@ -1026,21 +1054,29 @@ const applyAuthMode = () => {
     : 'Sign in to post in the community';
   const emailEl = document.getElementById('authEmail');
   if (emailEl) emailEl.style.display = isRegisterMode ? 'block' : 'none';
+  const forgotBtn = document.getElementById('authForgotPassword');
+  if (forgotBtn) forgotBtn.style.display = isRegisterMode ? 'none' : '';
 };
 
-document.getElementById('authRegisterToggle').addEventListener('click', () => {
+document.getElementById('authRegisterToggle')?.addEventListener('click', () => {
   isRegisterMode = !isRegisterMode;
   applyAuthMode();
   document.getElementById('authError').setAttribute('hidden', '');
+  document.getElementById('authSuccess')?.setAttribute('hidden', '');
+});
+
+document.getElementById('authForgotPassword')?.addEventListener('click', () => {
+  if (typeof openForgotPasswordModal === 'function') openForgotPasswordModal();
 });
 
 // Rate limiting state
 let authAttempts = 0;
 let authLockUntil = 0;
 
-document.getElementById('authSubmit').addEventListener('click', async () => {
+document.getElementById('authSubmit')?.addEventListener('click', async () => {
   const errEl = document.getElementById('authError');
   errEl.setAttribute('hidden', '');
+  document.getElementById('authSuccess')?.setAttribute('hidden', '');
 
   // Rate limit check
   if (Date.now() < authLockUntil) {
@@ -1101,6 +1137,13 @@ document.getElementById('authSubmit').addEventListener('click', async () => {
     }
     addAuditLog('User registered', 'system', username);
 
+    document.getElementById('authUsername').value = '';
+    document.getElementById('authPassword').value = '';
+    if (document.getElementById('authEmail')) document.getElementById('authEmail').value = '';
+    const authSuccess = document.getElementById('authSuccess');
+    if (authSuccess) authSuccess.removeAttribute('hidden');
+    return;
+
   } else {
     const { error } = await Auth.signIn(username, password);
     btn.disabled = false;
@@ -1127,8 +1170,8 @@ document.getElementById('authSubmit').addEventListener('click', async () => {
 
 // Allow Enter key to submit auth form
 ['authUsername', 'authPassword'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('authSubmit').click();
+  document.getElementById(id)?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('authSubmit')?.click();
   });
 });
 
@@ -1196,7 +1239,7 @@ async function deletePostImageFromBucket(imageUrl) {
 /* ─────────────────────────────────────────────
    NEW POST
 ───────────────────────────────────────────── */
-document.getElementById('postSubmit').addEventListener('click', async () => {
+document.getElementById('postSubmit')?.addEventListener('click', async () => {
   const session = Store.get('session');
   if (!session) { closeModal('postModal'); openAuthModal(); return; }
 
@@ -1261,27 +1304,27 @@ document.getElementById('postSubmit').addEventListener('click', async () => {
     btn.disabled = false;
   }
 
-  const newPost = { id: 'p' + Date.now(), userId: session.username, category, title, body, image: imageUrl, likes: 0, comments: 0, likedBy: [], date: new Date().toISOString() };
+  const newPost = { id: 'p-' + crypto.randomUUID(), userId: session.username, category, title, body, image: imageUrl, likes: 0, comments: 0, likedBy: [], date: new Date().toISOString() };
   const newPostDB = { id: newPost.id, userId: newPost.userId, category: newPost.category, title: newPost.title, content: newPost.body, image: newPost.image, likes: 0, commentsCount: 0, likedBy: [], created_at: newPost.date };
-  
+
   if (sbClient) {
-      const { error } = await sbClient.from('posts').insert([newPostDB]);
-      if (error) {
-          errEl.textContent = 'Database Error: ' + error.message;
-          errEl.removeAttribute('hidden');
-          return;
-      }
-      // Optimistic UI Update so we don't have to wait for websocket bounce back
-      const posts = Store.get('posts');
-      posts.push(newPost);
-      Store.set('posts', posts);
+    const { error } = await sbClient.from('posts').insert([newPostDB]);
+    if (error) {
+      errEl.textContent = 'Database Error: ' + error.message;
+      errEl.removeAttribute('hidden');
+      return;
+    }
+    // Optimistic UI Update locally without triggering massive upserts
+    const posts = Store.get('posts');
+    posts.push(newPost);
+    try { localStorage.setItem('ps_posts', JSON.stringify(posts)); } catch { }
   } else {
-      const posts = Store.get('posts');
-      posts.push(newPost);
-      Store.set('posts', posts);
+    errEl.textContent = 'Database offline. Cannot post locally.';
+    errEl.removeAttribute('hidden');
+    return;
   }
   addAuditLog('Forum post created', session.username, title);
-  
+
   document.getElementById('postTitle').value = '';
   document.getElementById('postBody').value = '';
   if (imageInput) imageInput.value = '';
@@ -1350,7 +1393,7 @@ const openViewPost = (postId) => {
   if (!post) return;
   const commentCount = (Store.get('comments') || []).filter(c => c.postId === post.id).length;
   const likeCount = (Store.get('likes') || []).filter(l => l.postId === post.id).length;
-  let author = users.find(u => u.id === post.userId);
+  let author = users.find(u => u.username === post.userId || u.id === post.userId);
   if (!author && post.authorName) author = { username: post.authorName, role: post.authorRole || 'member' };
   const date = new Date(post.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -1359,7 +1402,7 @@ const openViewPost = (postId) => {
   let canDelete = false;
   let canReport = false;
   if (session) {
-    if (session.userId === post.userId) canDelete = true;
+    if (session.userId === post.userId || session.username === post.userId) canDelete = true;
     else canReport = true;
 
     // Elevate privileges strictly based on the active frontend user session, not the background admin cookie
@@ -1427,7 +1470,7 @@ const openViewPost = (postId) => {
     const visibleComments = postComments.slice(0, commentsLimit);
 
     let html = visibleComments.map(c => {
-      let cAuthor = users.find(u => u.username === c.userId);
+      let cAuthor = users.find(u => u.username === c.userId || u.id === c.userId);
       if (!cAuthor) cAuthor = { username: c.authorName || 'Unknown', role: c.authorRole || 'member' };
       const cDate = new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `
@@ -1473,43 +1516,58 @@ const openViewPost = (postId) => {
       const likeCount = document.getElementById('postModalLikeCount');
       if (likeBtn) {
         likeBtn.addEventListener('click', async () => {
-          let currentPosts = Store.get('posts');
-          let currentPostIndex = currentPosts.findIndex(p => p.id === postId);
-          if (currentPostIndex === -1) return;
-          let currentPost = currentPosts[currentPostIndex];
-
-          let allLikes = Store.get('likes') || [];
-          const existingLikeIndex = allLikes.findIndex(l => l.postId === currentPost.id && l.userId === session.userId);
-
-          if (existingLikeIndex !== -1) {
-            // Unlike
-            allLikes.splice(existingLikeIndex, 1);
-            likeBtn.classList.remove('liked');
-            Store.set('likes', allLikes);
-            if(sbClient) {
-                const { error } = await sbClient.from('likes').delete().match({postId: currentPost.id, userId: session.userId});
-                if(error) alert('Unlike failed: ' + error.message);
+          try {
+            let currentPosts = Store.get('posts');
+            let currentPostIndex = currentPosts.findIndex(p => p.id === postId);
+            if (currentPostIndex === -1) return;
+            let currentPost = currentPosts[currentPostIndex];
+  
+            // Ensure likedBy is an array
+            let likedByArray = Array.isArray(currentPost.likedBy) ? currentPost.likedBy : [];
+            const hasLiked = likedByArray.includes(session.userId);
+  
+            if (hasLiked) {
+              // Unlike
+              likedByArray = likedByArray.filter(uid => uid !== session.userId);
+              currentPost.likes = Math.max(0, (currentPost.likes || 1) - 1);
+              likeBtn.classList.remove('liked');
+            } else {
+              // Like
+              likedByArray.push(session.userId);
+              currentPost.likes = (currentPost.likes || 0) + 1;
+              likeBtn.classList.add('liked');
+              
+              addAuditLog('Post liked', session.username, currentPost.title);
+              if (currentPost.userId !== session.userId) {
+                dispatchNotification(currentPost.userId, 'like', 'New Like', `${session.username} liked your post: "${currentPost.title}"`, { postId: currentPost.id });
+              }
             }
-          } else {
-            // Like
-            const newLike = { id: crypto.randomUUID ? crypto.randomUUID() : 'l'+Date.now(), postId: currentPost.id, userId: session.userId };
-            allLikes.push(newLike);
-            likeBtn.classList.add('liked');
-            Store.set('likes', allLikes);
-            if(sbClient) {
-                // We omit the id parameter completely during injection so that Supabase generates its own native postgres UUID locally, bypassing formatting crashes!
-                const { error } = await sbClient.from('likes').insert([{postId: newLike.postId, userId: newLike.userId}]);
-                if(error) alert('Like failed: ' + error.message);
+            currentPost.likedBy = likedByArray;
+  
+            // Update local store explicitly
+            Store.set('posts', currentPosts);
+            likeCount.textContent = currentPost.likes;
+            renderForum();
+  
+            // Sync with Supabase (updating the posts table directly)
+            if (sbClient) {
+              const { error } = await sbClient
+                .from('posts')
+                .update({ 
+                  likes: currentPost.likes, 
+                  likedBy: currentPost.likedBy 
+                })
+                .eq('id', currentPost.id);
+                
+              if (error) {
+                console.error("Supabase like update failed:", error);
+                alert("Failed to sync like with database: " + error.message);
+              }
             }
-
-            addAuditLog('Post liked', session.username, currentPost.title);
-            if (currentPost.userId !== session.userId) {
-              dispatchNotification(currentPost.userId, 'like', 'New Like', `${session.username} liked your post: "${currentPost.title}"`, { postId: currentPost.id });
-            }
+          } catch (e) {
+            console.error("Like Error:", e);
+            alert("Local Error while liking post: " + e.message);
           }
-
-          likeCount.textContent = (Store.get('likes') || []).filter(l => l.postId === currentPost.id).length;
-          renderForum();
         });
       }
 
@@ -1518,75 +1576,106 @@ const openViewPost = (postId) => {
       const replyInput = document.getElementById('modalCommentInput');
       if (replyBtn && replyInput) {
         replyBtn.addEventListener('click', async () => {
-          const body = replyInput.value.trim();
-          if (!body) return;
-
-          replyBtn.disabled = true;
-          replyBtn.textContent = 'Posting...';
-
-          const allComments = Store.get('comments') || [];
-          const newComment = {
-            id: 'c' + Date.now(),
-            postId: postId,
-            userId: session.username,
-            authorName: session.username,
-            authorRole: session.role,
-            body: body,
-            date: new Date().toISOString()
-          };
-          allComments.push(newComment);
-          Store.set('comments', allComments);
-          if(sbClient) {
-            const { error: commentsErr } = await sbClient.from('comments').insert([{id: newComment.id, postId: newComment.postId, userId: newComment.userId, content: newComment.body, created_at: newComment.date}]);
-            if (commentsErr) {
-              alert("Supabase Database Error: " + commentsErr.message);
-              return;
+          try {
+            const body = replyInput.value.trim();
+            if (!body) return;
+  
+            replyBtn.disabled = true;
+            replyBtn.textContent = 'Posting...';
+  
+            const allComments = Store.get('comments') || [];
+            const newComment = {
+              id: 'c-' + crypto.randomUUID(),
+              postId: postId,
+              userId: session.username,
+              authorName: session.username,
+              authorRole: session.role,
+              body: body,
+              date: new Date().toISOString()
+            };
+            allComments.push(newComment);
+            Store.set('comments', allComments);
+            
+            if (sbClient) {
+              const { error: commentsErr } = await sbClient.from('comments').insert([{ id: newComment.id, postId: newComment.postId, userId: newComment.userId, content: newComment.body, created_at: newComment.date }]);
+              if (commentsErr) {
+                alert("Supabase Database Error inserting comment: " + commentsErr.message + "\nAre you sure the 'comments' table exists in Supabase?");
+                replyBtn.disabled = false;
+                replyBtn.textContent = 'Reply';
+                return;
+              }
             }
+  
+            let currentPosts = Store.get('posts');
+            let currentPostIndex = currentPosts.findIndex(p => p.id === postId);
+            if (currentPostIndex !== -1) {
+              currentPosts[currentPostIndex].comments = (currentPosts[currentPostIndex].comments || 0) + 1;
+              Store.set('posts', currentPosts);
+              if (sbClient) await sbClient.from('posts').update({ commentsCount: currentPosts[currentPostIndex].comments }).eq('id', currentPosts[currentPostIndex].id);
+            }
+  
+            addAuditLog('Comment added', session.username, `Replying to ${post.title}`);
+            if (post.userId !== session.userId) {
+              dispatchNotification(post.userId, 'comment', 'New Comment', `${session.username} replied to your post: "${post.title}"`, { postId: post.id });
+            }
+  
+            replyInput.value = '';
+            replyBtn.disabled = false;
+            replyBtn.textContent = 'Reply';
+  
+            commentsLimit += 1; // Increase limit to show the newly posted comment immediately
+            renderComments();
+            const commentCounters = document.querySelectorAll('.post-footer .post-action');
+            if (commentCounters.length === 2) {
+              commentCounters[1].innerHTML = `💬 ${sanitize(String(currentPosts[currentPostIndex]?.comments || 0))}`;
+            }
+  
+            renderForum();
+          } catch (err) {
+            console.error("Comment Reply Error:", err);
+            alert("A local error occurred while posting your comment: " + err.message);
+            replyBtn.disabled = false;
+            replyBtn.textContent = 'Reply';
           }
-
-          let currentPosts = Store.get('posts');
-          let currentPostIndex = currentPosts.findIndex(p => p.id === postId);
-          if (currentPostIndex !== -1) {
-            currentPosts[currentPostIndex].comments = (currentPosts[currentPostIndex].comments || 0) + 1;
-            Store.set('posts', currentPosts);
-            if(sbClient) sbClient.from('posts').update({commentsCount: currentPosts[currentPostIndex].comments}).eq('id', currentPosts[currentPostIndex].id);
-          }
-
-          addAuditLog('Comment added', session.username, `Replying to ${post.title}`);
-          if (post.userId !== session.userId) {
-            dispatchNotification(post.userId, 'comment', 'New Comment', `${session.username} replied to your post: "${post.title}"`, { postId: post.id });
-          }
-
-          replyInput.value = '';
-          replyBtn.disabled = false;
-          replyBtn.textContent = 'Reply';
-
-          commentsLimit += 1; // Increase limit to show the newly posted comment immediately
-          renderComments();
-          const commentCounters = document.querySelectorAll('.post-footer .post-action');
-          if (commentCounters.length === 2) {
-            commentCounters[1].innerHTML = `💬 ${sanitize(String(currentPosts[currentPostIndex].comments))}`;
-          }
-
-          renderForum();
         });
       }
     }, 0);
   }
 
   if (canDelete) {
-    document.getElementById('deletePostBtn')?.addEventListener('click', async () => {
-      const confirmed = await customConfirm('Are you certain you want to permanently delete this post?');
-      if (!confirmed) return;
-      await deletePostImageFromBucket(post.image);
-      let allPosts = Store.get('posts');
-      allPosts = allPosts.filter(p => p.id !== postId);
-      Store.set('posts', allPosts);
-      closeModal('viewPostModal');
-      renderForum();
-      addAuditLog('Post deleted', session.username, post.title);
-      dispatchNotification(post.userId, 'violation', 'Post Deleted', `Your post "${post.title}" was removed. (Self/Moderator action)`);
-    });
+    const delBtn = document.getElementById('deletePostBtn');
+    if (delBtn) {
+      delBtn.addEventListener('click', async () => {
+        const confirmed = await customConfirm('Are you certain you want to permanently delete this post?');
+        if (!confirmed) return;
+        
+        // Instant visual feedback
+        delBtn.textContent = 'Deleting...';
+        delBtn.style.opacity = '0.5';
+        delBtn.style.pointerEvents = 'none';
+
+        // Optimistic UI Update first
+        closeModal('viewPostModal');
+        let allPosts = Store.get('posts');
+        allPosts = allPosts.filter(p => String(p.id) !== String(postId));
+        Store.set('posts', allPosts, true); // true forces save if needed, but Store handles it
+        renderForum(); // Instantly hide it from the grid
+
+        // Background network requests
+        try {
+          await deletePostImageFromBucket(post.image);
+          if (sbClient) {
+            await sbClient.from('posts').delete().eq('id', postId);
+          }
+          addAuditLog('Post deleted', session.username, post.title || postId);
+          if (session.username !== post.userId) {
+            dispatchNotification(post.userId, 'violation', 'Post Deleted', `Your post "${post.title}" was removed by a moderator.`);
+          }
+        } catch (err) {
+          console.error("Delayed delete failed:", err);
+        }
+      });
+    }
   }
 
   if (canReport) {
@@ -1615,9 +1704,8 @@ document.getElementById('reportSubmitBtn')?.addEventListener('click', () => {
   const targetPost = allPosts.find(p => p.id === postId);
   if (!targetPost) return;
 
-  const currentReports = Store.get('reports');
-  currentReports.push({
-    id: 'rep' + Date.now(),
+  const newReport = {
+    id: 'rep-' + crypto.randomUUID(),
     postId: postId,
     postTitle: targetPost.title,
     uploaderId: targetPost.userId,
@@ -1626,9 +1714,17 @@ document.getElementById('reportSubmitBtn')?.addEventListener('click', () => {
     reason: reason,
     message: message,
     date: new Date().toISOString()
-  });
-
+  };
+  const currentReports = Store.get('reports') || [];
+  currentReports.push(newReport);
   Store.set('reports', currentReports);
+
+  if (sbClient) {
+    sbClient.from('reports').insert([newReport]).then(res => {
+      if (res.error) console.error("Report Insert DB Error:", res.error.message);
+    });
+  }
+
   addAuditLog('Post reported', session.username, targetPost.title);
 
   closeModal('reportModal');
@@ -1641,20 +1737,47 @@ document.getElementById('reportSubmitBtn')?.addEventListener('click', () => {
 const openAdminAuth = () => {
   const adminSession = Store.get('adminSession');
   const profile = Auth.getProfile();
+  const isAdminPage = !!document.querySelector('.admin-standalone');
+
   if (adminSession && ['owner', 'admin', 'staff'].includes(adminSession.role)) {
-    openAdminPortal();
+    if (isAdminPage) {
+      openAdminPortal();
+    } else {
+      window.location.href = 'admin.html';
+    }
   } else if (profile && ['owner', 'admin', 'staff'].includes(profile.role)) {
     Store.set('adminSession', { userId: profile.id, username: profile.username, role: profile.role });
-    openAdminPortal();
+    if (isAdminPage) {
+      openAdminPortal();
+    } else {
+      window.location.href = 'admin.html';
+    }
   } else {
-    openModal('adminAuthModal');
+    if (isAdminPage) {
+      openModal('adminAuthModal');
+    } else {
+      window.location.href = 'admin.html';
+    }
   }
 };
 
-document.getElementById('adminAnnouncementsBtn').addEventListener('click', openAdminAuth);
-document.getElementById('footerAdminBtn').addEventListener('click', openAdminAuth);
+// If we are on the admin page, trigger the flow on load
+if (document.querySelector('.admin-standalone')) {
+  setTimeout(openAdminAuth, 100);
+}
 
-document.getElementById('adminAuthSubmit').addEventListener('click', async () => {
+const adminAnncBtn = document.getElementById('adminAnnouncementsBtn');
+if (adminAnncBtn) adminAnncBtn.addEventListener('click', (e) => {
+  // If it's explicitly rendered as a link, the browser handles it. If not, trigger auth manually.
+  if (adminAnncBtn.tagName !== 'A') openAdminAuth();
+});
+
+const footAdminBtn = document.getElementById('footerAdminBtn');
+if (footAdminBtn) footAdminBtn.addEventListener('click', (e) => {
+  if (footAdminBtn.tagName !== 'A') openAdminAuth();
+});
+
+document.getElementById('adminAuthSubmit')?.addEventListener('click', async () => {
   const username = document.getElementById('adminAuthUser').value.trim();
   const password = document.getElementById('adminAuthPass').value;
   const errEl = document.getElementById('adminAuthError');
@@ -1682,32 +1805,65 @@ document.getElementById('adminAuthSubmit').addEventListener('click', async () =>
 const openAdminPortal = () => {
   const session = Store.get('adminSession');
   if (!session) { openAdminAuth(); return; }
-  document.getElementById('adminUserInfo').innerHTML = `<strong>${sanitize(session.username)}</strong><br><span class="role-badge role-${session.role}">${sanitize(session.role)}</span>`;
+
+  const adminModal = document.getElementById('adminModal');
+  if (adminModal) {
+    if (adminModal.innerHTML.trim() === '') {
+      const template = document.getElementById('adminTemplate');
+      if (template) {
+        adminModal.appendChild(template.content.cloneNode(true));
+        
+        // Bind listeners exclusively inside the newly injected DOM
+        document.getElementById('adminLogout')?.addEventListener('click', () => {
+          const s = Store.get('adminSession');
+          if (s) addAuditLog('Admin logout', s.username, 'portal');
+          Store.set('adminSession', null);
+          adminModal.setAttribute('hidden', '');
+          adminModal.innerHTML = ''; // Wipe DOM from devtools
+          openAdminAuth();
+        });
+
+        const hamburger = document.getElementById('adminHamburger');
+        const nav = document.getElementById('adminNav');
+        hamburger?.addEventListener('click', () => {
+          const isExpanded = hamburger.getAttribute('aria-expanded') === 'true';
+          hamburger.setAttribute('aria-expanded', !isExpanded);
+          if (!isExpanded) {
+            nav?.classList.add('open');
+            hamburger.classList.add('open');
+          } else {
+            nav?.classList.remove('open');
+            hamburger.classList.remove('open');
+          }
+        });
+
+        document.querySelectorAll('.admin-nav-item').forEach(btn => {
+          btn.addEventListener('click', () => {
+            nav?.classList.remove('open');
+            hamburger?.classList.remove('open');
+            hamburger?.setAttribute('aria-expanded', 'false');
+
+            document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderAdminPanel(btn.dataset.panel);
+          });
+        });
+      }
+    }
+    adminModal.removeAttribute('hidden');
+  }
+
+  const userInfoEl = document.getElementById('adminUserInfo');
+  if (userInfoEl) userInfoEl.innerHTML = `<strong>${sanitize(session.username)}</strong><br><span class="role-badge role-${session.role}">${sanitize(session.role)}</span>`;
   renderAdminPanel('dashboard');
-  openModal('adminModal');
 };
-
-document.getElementById('adminLogout').addEventListener('click', () => {
-  const s = Store.get('adminSession');
-  if (s) addAuditLog('Admin logout', s.username, 'portal');
-  Store.set('adminSession', null);
-  closeModal('adminModal');
-});
-
-document.querySelectorAll('.admin-nav-item').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderAdminPanel(btn.dataset.panel);
-  });
-});
 
 const canDo = (action) => {
   const s = Store.get('adminSession');
   if (!s) return false;
   if (s.role === 'owner') return true;
-  if (s.role === 'admin') return ['post_announcement', 'manage_posts', 'view_users', 'manage_users', 'view_audit', 'view_status'].includes(action);
-  if (s.role === 'staff') return ['post_announcement', 'manage_posts'].includes(action);
+  if (s.role === 'admin') return ['post_announcement', 'manage_posts', 'view_users', 'manage_users', 'view_audit', 'view_status', 'manage_lessons'].includes(action);
+  if (s.role === 'staff') return ['post_announcement', 'manage_posts', 'manage_lessons'].includes(action);
   return false;
 };
 
@@ -1762,13 +1918,22 @@ const renderAdminPanel = (panel) => {
       `;
       document.getElementById('newAnnouncementBtn')?.addEventListener('click', () => openModal('composerModal'));
       main.querySelectorAll('[data-delete-ann]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (!confirm('Delete this announcement?')) return;
-          const anns = Store.get('announcements').filter(a => a.id !== btn.dataset.deleteAnn);
-          Store.set('announcements', anns);
-          addAuditLog('Announcement deleted', session.username, btn.dataset.deleteAnn);
-          renderAnnouncements();
-          renderAdminPanel('announcements');
+        btn.addEventListener('click', async () => {
+          try {
+            if (!await customConfirm('Are you certain you want to permanently delete this announcement?')) return;
+            const annId = btn.dataset.deleteAnn;
+            const anns = Store.get('announcements').filter(a => String(a.id) !== String(annId));
+            Store.set('announcements', anns, true);
+            if (sbClient) {
+              const { error } = await sbClient.from('announcements').delete().eq('id', annId);
+              if (error) console.error("DB Delete Error:", error.message);
+            }
+            addAuditLog('Announcement deleted', session.username, annId);
+            renderAnnouncements();
+            renderAdminPanel('announcements');
+          } catch (e) {
+            console.error("Delete Ann Error:", e);
+          }
         });
       });
       break;
@@ -1797,17 +1962,26 @@ const renderAdminPanel = (panel) => {
       `;
       main.querySelectorAll('[data-delete-post]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          if (!confirm('Delete this post?')) return;
-          const targetPost = Store.get('posts').find(p => p.id === btn.dataset.deletePost);
-          await deletePostImageFromBucket(targetPost?.image);
-          const postsArr = Store.get('posts').filter(p => p.id !== btn.dataset.deletePost);
-          Store.set('posts', postsArr);
-          addAuditLog('Forum post deleted', session.username, btn.dataset.deletePost);
-          if (targetPost && targetPost.userId !== session.username) {
-            dispatchNotification(targetPost.userId, 'violation', 'Post Deleted', `Your post "${targetPost.title}" was removed by an Administrator.`);
+          try {
+            if (!await customConfirm('Are you certain you want to permanently delete this post?')) return;
+            const postId = btn.dataset.deletePost;
+            const targetPost = Store.get('posts').find(p => String(p.id) === String(postId));
+            await deletePostImageFromBucket(targetPost?.image);
+            const postsArr = Store.get('posts').filter(p => String(p.id) !== String(postId));
+            Store.set('posts', postsArr, true);
+            if (sbClient) {
+              const { error } = await sbClient.from('posts').delete().eq('id', postId);
+              if (error) console.error("DB Delete Error:", error.message);
+            }
+            addAuditLog('Forum post deleted', session.username, postId);
+            if (targetPost && targetPost.userId !== session.username) {
+              dispatchNotification(targetPost.userId, 'violation', 'Post Deleted', `Your post "${targetPost.title}" was removed by an Administrator.`);
+            }
+            renderForum();
+            renderAdminPanel('posts');
+          } catch (e) {
+            console.error("Delete Post Error:", e);
           }
-          renderForum();
-          renderAdminPanel('posts');
         });
       });
       break;
@@ -1849,7 +2023,7 @@ const renderAdminPanel = (panel) => {
           if (!await customConfirm('Dismiss this report? No action will be taken.')) return;
           const rid = btn.dataset.reportDismiss;
           Store.set('reports', Store.get('reports').filter(r => r.id !== rid));
-          if(sbClient) sbClient.from('reports').delete().eq('id', rid);
+          if (sbClient) await sbClient.from('reports').delete().eq('id', rid);
           addAuditLog('Report dismissed', session.username, rid);
           renderAdminPanel('reports');
         });
@@ -1863,9 +2037,9 @@ const renderAdminPanel = (panel) => {
 
           const targetPost = Store.get('posts').find(p => p.id === pid);
           await deletePostImageFromBucket(targetPost?.image);
-          if(sbClient) await sbClient.from('posts').delete().eq('id', pid); else Store.set('posts', Store.get('posts').filter(p => p.id !== pid));
+          if (sbClient) await sbClient.from('posts').delete().eq('id', pid); else Store.set('posts', Store.get('posts').filter(p => p.id !== pid));
           Store.set('reports', Store.get('reports').filter(r => r.id !== rid));
-          if(sbClient) sbClient.from('reports').delete().eq('id', rid);
+          if (sbClient) await sbClient.from('reports').delete().eq('id', rid);
           addAuditLog('Post deleted via Report', session.username, pid);
           if (targetPost && targetPost.userId !== session.username) {
             dispatchNotification(targetPost.userId, 'violation', 'Post Removed', `Your post "${targetPost.title}" was removed for violating community guidelines.`);
@@ -1905,7 +2079,7 @@ const renderAdminPanel = (panel) => {
       if (!canDo('view_users')) { main.innerHTML = '<div class="admin-panel-title">Users</div><p style="color:var(--mid);">You do not have permission to view users.</p>'; return; }
       const isOwner = session.role === 'owner';
       const canManage = canDo('manage_users');
-      
+
       main.innerHTML = `<div class="admin-panel-title">Loading Users...</div>`;
 
       if (sbClient) {
@@ -1914,7 +2088,7 @@ const renderAdminPanel = (panel) => {
             main.innerHTML = `<p style="color:var(--error);">Failed to load users from Supabase.</p>`;
             return;
           }
-          
+
           let usersList = data || [];
           // Organize by role logic (owner > admin > staff > member)
           const roleWeight = { 'owner': 4, 'admin': 3, 'staff': 2, 'member': 1 };
@@ -1948,7 +2122,7 @@ const renderAdminPanel = (panel) => {
               </tbody>
             </table></div>
           `;
-          
+
           // Search functionality
           const searchInput = document.getElementById('adminUserSearch');
           if (searchInput) {
@@ -1961,96 +2135,206 @@ const renderAdminPanel = (panel) => {
             });
           }
 
-          // Deletion handler
-          main.querySelectorAll('[data-delete-user]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              if (!confirm('Are you sure you want to permanently delete this user account?')) return;
-              const uname = btn.dataset.deleteUser;
-              
-              // Instant UI update
-              const row = document.querySelector(`tr[data-row-username="${sanitize(uname)}"]`);
-              if (row) row.remove();
-              
-              await sbClient.from('users').delete().eq('username', uname);
-              
-              const usersArr = Store.get('users').filter(u => u.username !== uname);
-              Store.set('users', usersArr);
+              // Deletion handler
+              main.querySelectorAll('[data-delete-user]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                  if (!confirm('Are you sure you want to permanently delete this user account?')) return;
+                  const uname = btn.dataset.deleteUser;
+    
+                  const { error } = await sbClient.from('users').delete().eq('username', uname);
+                  if (error) {
+                    alert(`Failed to delete user in Supabase: ${error.message}`);
+                    return;
+                  }
+    
+                  // Instant UI update
+                  const row = document.querySelector(`tr[data-row-username="${sanitize(uname)}"]`);
+                  if (row) row.remove();
+    
+                  const usersArr = Store.get('users').filter(u => u.username !== uname);
+                  Store.set('users', usersArr);
+    
+                  if (session.username === uname) {
+                    Store.set('session', null);
+                    updateNavForSession();
+                    renderForum();
+                  }
+                  addAuditLog('User deleted', session.username, uname);
+                });
+              });
+    
+              // Role change handler
+              main.querySelectorAll('[data-save-role]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                  const uname = btn.dataset.saveRole;
+                  const select = main.querySelector(`[data-role-user="${sanitize(uname)}"]`);
+                  if (!select) return;
+                  const newRole = select.value;
+    
+                  // Get session directly to debug authentication
+                  const sessionResp = await sbClient.auth.getSession();
+                  const authUser = sessionResp.data?.session?.user;
+                  if (!authUser) {
+                    alert('Debug: You are not authenticated in Supabase! (sbClient has no session)');
+                    return;
+                  }
+                  
+                  const { data, error } = await sbClient.from('users').update({ role: newRole }).eq('username', uname).select();
+                  if (error) {
+                    console.error("Supabase role update error:", error);
+                    alert(`Failed to update Role in Supabase:\n\n${error.message}`);
+                    return; // Stop local optimistic update since DB rejected it
+                  }
 
-              if (session.username === uname) {
-                Store.set('session', null);
-                updateNavForSession();
-                renderForum();
-              }
-              addAuditLog('User deleted', session.username, uname);
-            });
-          });
+                  if (!data || data.length === 0) {
+                    alert(`Debug: The database update matched ZERO rows.\nCurrent Auth UID: ${authUser.id}\nTarget Username: ${uname}\nExpected Role: ${newRole}\n\nThis means your row-level security policy rejected the update (likely because it doesn't recognize your UID as an admin/owner).`);
+                    return;
+                  }
 
-          // Role change handler
-          main.querySelectorAll('[data-save-role]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              const uname = btn.dataset.saveRole;
-              const select = main.querySelector(`[data-role-user="${sanitize(uname)}"]`);
-              if (!select) return;
-              const newRole = select.value;
-              
-              // Instant optimistic UI update
-              const badge = main.querySelector(`#badge-${sanitize(uname)}`);
-              let oldRole = 'unknown';
-              if (badge) {
-                oldRole = badge.textContent;
-                badge.className = `role-badge role-${newRole}`;
-                badge.textContent = newRole;
-              }
-              btn.textContent = 'Saved!';
-              setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 1500);
-              
-              await sbClient.from('users').update({ role: newRole }).eq('username', uname);
-
-              const usersArr = Store.get('users');
-              const user = usersArr.find(u => u.username === uname);
-              if (user) {
-                user.role = newRole;
-                Store.set('users', usersArr);
-                addAuditLog(`Role changed ${oldRole} → ${newRole}`, session.username, uname);
-              }
-            });
-          });
+                  // Instant optimistic UI update
+                  const badge = main.querySelector(`#badge-${sanitize(uname)}`);
+                  let oldRole = 'unknown';
+                  if (badge) {
+                    oldRole = badge.textContent;
+                    badge.className = `role-badge role-${newRole}`;
+                    badge.textContent = newRole;
+                  }
+                  btn.textContent = 'Saved!';
+                  setTimeout(() => { if (btn) btn.textContent = 'Save'; }, 1500);
+    
+                  const usersArr = Store.get('users');
+                  const user = usersArr.find(u => u.username === uname);
+                  if (user) {
+                    user.role = newRole;
+                    Store.set('users', usersArr);
+                    addAuditLog(`Role changed ${oldRole} → ${newRole}`, session.username, uname);
+                  }
+                });
+              });
         });
       } else {
         main.innerHTML = `<p style="color:var(--error);">Supabase disconnected.</p>`;
       }
       break;
     }
+    case 'lessons': {
+      if (!canDo('manage_lessons')) { main.innerHTML = '<div class="admin-panel-title">Lessons</div><p style="color:var(--mid);">You do not have permission to manage lessons.</p>'; return; }
+      const lessons = Store.get('lessons') || [];
+      lessons.sort((a, b) => parseFloat(a.step_number || 0) - parseFloat(b.step_number || 0));
+
+      main.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+          <div class="admin-panel-title" style="margin-bottom:0;">Roadmap Lessons (${lessons.length})</div>
+          <button class="btn-primary" id="lessonNewBtn">New Lesson</button>
+        </div>
+        <div style="overflow-x:auto; width:100%;"><table class="admin-table">
+          <thead><tr><th>Step</th><th>Loc</th><th>Section</th><th>Title</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${lessons.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--mid);">No lessons yet.</td></tr>' : ''}
+            ${lessons.map(l => `<tr>
+              <td>${sanitize(l.step_number?.toString() || '0')}</td>
+              <td><span style="color:var(--primary);">${sanitize(l.tab_level)}</span></td>
+              <td>${sanitize(l.section)}</td>
+              <td><strong>${sanitize(l.title)}</strong></td>
+              <td><span class="role-badge role-${l.status === 'published' ? 'owner' : 'member'}">${sanitize(l.status)}</span></td>
+              <td style="white-space:nowrap;">
+                <button class="admin-btn edit-lesson-btn" data-id="${sanitize(l.id)}">Edit</button>
+                <button class="admin-btn danger del-lesson-btn" data-id="${sanitize(l.id)}">Delete</button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+      `;
+
+      main.querySelector('#lessonNewBtn').addEventListener('click', () => {
+        document.getElementById('lessonId').value = '';
+        document.getElementById('lessonStep').value = '';
+        document.getElementById('lessonTab').value = 'Beginner';
+        document.getElementById('lessonSection').value = '';
+        document.getElementById('lessonTitle').value = '';
+        document.getElementById('lessonDescription').value = '';
+        document.getElementById('lessonIcon').value = '📚';
+        document.getElementById('lessonStatus').value = 'Published';
+        document.getElementById('lessonVideoUrl').value = '';
+        document.getElementById('lessonContent').value = '';
+        document.getElementById('lessonModalTitle').textContent = 'Create Lesson';
+        document.getElementById('lessonError').hidden = true;
+        document.getElementById('lessonModal').hidden = false;
+      });
+
+      main.querySelectorAll('.edit-lesson-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const l = lessons.find(x => x.id === btn.dataset.id);
+          if (!l) return;
+          document.getElementById('lessonId').value = l.id;
+          document.getElementById('lessonStep').value = l.step_number || '';
+          document.getElementById('lessonTab').value = l.tab_level || 'Beginner';
+          document.getElementById('lessonSection').value = l.section || '';
+          document.getElementById('lessonTitle').value = l.title || '';
+          document.getElementById('lessonDescription').value = l.description || '';
+          document.getElementById('lessonIcon').value = l.icon || '📚';
+          document.getElementById('lessonStatus').value = l.status || 'Published';
+          
+          let rawContent = l.content || '';
+          let matchedVid = rawContent.match(/<div class="youtube-embed-wrapper" style="margin-bottom:1\.5rem;"><iframe width="100%" height="315" src="https:\/\/www\.youtube\.com\/embed\/([^"?]+)".*?<\/iframe><\/div>/);
+          if (matchedVid && matchedVid[1]) {
+            document.getElementById('lessonVideoUrl').value = 'https://youtube.com/watch?v=' + matchedVid[1];
+            rawContent = rawContent.replace(matchedVid[0], '');
+          } else {
+            document.getElementById('lessonVideoUrl').value = '';
+          }
+          document.getElementById('lessonContent').value = rawContent;
+
+          document.getElementById('lessonModalTitle').textContent = 'Edit Lesson';
+          document.getElementById('lessonError').hidden = true;
+          document.getElementById('lessonModal').hidden = false;
+        });
+      });
+
+      main.querySelectorAll('.del-lesson-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!await customConfirm('Delete this lesson permanently?')) return;
+          const id = btn.dataset.id;
+          if (sbClient) {
+            await sbClient.from('lessons').delete().eq('id', id);
+          }
+          const updated = Store.get('lessons').filter(l => l.id !== id);
+          Store.set('lessons', updated);
+          renderAdminPanel('lessons');
+        });
+      });
+      break;
+    }
     case 'audit': {
       if (!canDo('view_audit')) { main.innerHTML = '<div class="admin-panel-title">Audit Log</div><p style="color:var(--mid);">You do not have permission to view the audit log.</p>'; return; }
-      
+
       const allLogs = Store.get('auditLog').slice().reverse();
-      
+
       const renderLogs = (filterDate) => {
-         const filtered = filterDate 
-            ? allLogs.filter(l => {
-                const d = new Date(l.date);
-                const lDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                return lDate === filterDate;
-              })
-            : allLogs;
-            
-         const countEl = document.getElementById('auditLogCount');
-         if (countEl) countEl.textContent = `(${filtered.length} entries)`;
-         
-         const container = document.getElementById('auditLogContainer');
-         if (!container) return;
-         
-         if (filtered.length === 0) {
-             container.innerHTML = '<p style="color:var(--mid); padding:1rem 0;">No audit logs found for this date.</p>';
-         } else {
-             container.innerHTML = filtered.map(l => `
+        const filtered = filterDate
+          ? allLogs.filter(l => {
+            const d = new Date(l.date);
+            const lDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            return lDate === filterDate;
+          })
+          : allLogs;
+
+        const countEl = document.getElementById('auditLogCount');
+        if (countEl) countEl.textContent = `(${filtered.length} entries)`;
+
+        const container = document.getElementById('auditLogContainer');
+        if (!container) return;
+
+        if (filtered.length === 0) {
+          container.innerHTML = '<p style="color:var(--mid); padding:1rem 0;">No audit logs found for this date.</p>';
+        } else {
+          container.innerHTML = filtered.map(l => `
               <div class="audit-entry">
                 <div class="audit-action">${sanitize(l.action)}: <strong>${sanitize(l.target)}</strong></div>
                 <div class="audit-meta"><span>By: ${sanitize(l.performedBy)}</span><span>${new Date(l.date).toLocaleString()}</span></div>
               </div>
             `).join('');
-         }
+        }
       };
 
       main.innerHTML = `
@@ -2064,22 +2348,22 @@ const renderAdminPanel = (panel) => {
         </div>
         <div id="auditLogContainer"></div>
       `;
-      
+
       renderLogs('');
-      
+
       const dateInput = document.getElementById('auditDateFilter');
       const clearBtn = document.getElementById('auditDateClearBtn');
-      
+
       dateInput.addEventListener('change', (e) => {
-         const d = e.target.value;
-         clearBtn.style.display = d ? 'inline-block' : 'none';
-         renderLogs(d);
+        const d = e.target.value;
+        clearBtn.style.display = d ? 'inline-block' : 'none';
+        renderLogs(d);
       });
-      
+
       clearBtn.addEventListener('click', () => {
-         dateInput.value = '';
-         clearBtn.style.display = 'none';
-         renderLogs('');
+        dateInput.value = '';
+        clearBtn.style.display = 'none';
+        renderLogs('');
       });
 
       break;
@@ -2150,27 +2434,54 @@ const renderAdminPanel = (panel) => {
    AUDIT LOG HELPER
 ───────────────────────────────────────────── */
 const addAuditLog = (action, performedBy, target) => {
+  const session = Store.get('session');
+  // Only record audit logs for owner, admin, or staff
+  if (session && session.role === 'member') return;
+
+  const newLog = { 
+    id: 'log-' + crypto.randomUUID(), 
+    action, 
+    performedBy, 
+    target, 
+    date: new Date().toISOString() 
+  };
+  
   const logs = Store.get('auditLog');
-  logs.push({ id: 'log' + Date.now(), action, performedBy, target, date: new Date().toISOString() });
-  Store.set('auditLog', logs);
+  logs.push(newLog);
+  // Perform local update, skipping the generic 'store' backup mechanism
+  Store.set('auditLog', logs, true); 
+
+  if (sbClient) {
+    // Write directly to the structured SQL audit_logs table instead of JSON blobs
+    sbClient.from('audit_logs').insert([{
+      id: newLog.id,
+      action: newLog.action,
+      "performedBy": newLog.performedBy,
+      target: newLog.target,
+      date: newLog.date
+    }]).then(res => {
+      if (res.error) console.error("Audit DB Error:", res.error.message);
+    });
+  }
 };
 
 /* ─────────────────────────────────────────────
    RICH TEXT ANNOUNCEMENT COMPOSER
 ───────────────────────────────────────────── */
 document.querySelectorAll('.toolbar-btn[data-cmd]').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault(); // Prevent button from stealing focus
     document.execCommand(btn.dataset.cmd, false, null);
     document.getElementById('announcementBody').focus();
   });
 });
 
-document.getElementById('textColorPicker').addEventListener('input', (e) => {
+document.getElementById('textColorPicker')?.addEventListener('input', (e) => {
   document.execCommand('foreColor', false, e.target.value);
   document.getElementById('announcementBody').focus();
 });
 
-document.getElementById('composerSubmit').addEventListener('click', async () => {
+document.getElementById('composerSubmit')?.addEventListener('click', async () => {
   const session = Store.get('adminSession');
   if (!session || !canDo('post_announcement')) { closeModal('composerModal'); return; }
 
@@ -2182,23 +2493,23 @@ document.getElementById('composerSubmit').addEventListener('click', async () => 
   if (!subject) { errEl.textContent = 'Please provide a subject/title.'; errEl.removeAttribute('hidden'); return; }
   if (!body || body === '<br>') { errEl.textContent = 'Please write some content.'; errEl.removeAttribute('hidden'); return; }
 
-  const newAnn = { id: 'a' + Date.now(), authorId: session.username, subject, body: sanitizeHTML(body), date: new Date().toISOString() };
+  const newAnn = { id: 'a-' + crypto.randomUUID(), authorId: session.username, subject, body: sanitizeHTML(body), date: new Date().toISOString() };
   const newAnnDB = { id: newAnn.id, title: newAnn.subject, content: newAnn.body, author: newAnn.authorId, tag: 'Staff', created_at: newAnn.date };
   if (sbClient) {
-      const { error } = await sbClient.from('announcements').insert([newAnnDB]);
-      if (error) {
-          errEl.textContent = 'Database Error: ' + error.message;
-          errEl.removeAttribute('hidden');
-          return;
-      }
-      // Optimistic UI Update so we don't have to wait for websocket bounce back
-      const announcements = Store.get('announcements');
-      announcements.push(newAnn);
-      Store.set('announcements', announcements);
+    const { error } = await sbClient.from('announcements').insert([newAnnDB]);
+    if (error) {
+      errEl.textContent = 'Database Error: ' + error.message;
+      errEl.removeAttribute('hidden');
+      return;
+    }
+    // Optimistic UI Update locally without triggering massive upserts
+    const announcements = Store.get('announcements');
+    announcements.push(newAnn);
+    try { localStorage.setItem('ps_announcements', JSON.stringify(announcements)); } catch { }
   } else {
-      const announcements = Store.get('announcements');
-      announcements.push(newAnn);
-      Store.set('announcements', announcements);
+    errEl.textContent = 'Database offline. Cannot post locally.';
+    errEl.removeAttribute('hidden');
+    return;
   }
   addAuditLog('Announcement posted', session.username, subject);
   dispatchNotification('all', 'announcement', 'New Announcement', `Admin posted a new announcement: "${subject}".`, { hash: '#announcements' });
@@ -2322,12 +2633,16 @@ const renderProfileActivity = () => {
     list.innerHTML = `<p style="color:var(--mid);">You haven't posted anything yet.</p>`;
     return;
   }
-  list.innerHTML = posts.map(p => `
+  list.innerHTML = posts.map(p => {
+    const commentCount = (Store.get('comments') || []).filter(c => c.postId === p.id).length;
+    const likeCount = (Store.get('likes') || []).filter(l => l.postId === p.id).length;
+    return `
       <div class="activity-item" data-pid="${sanitize(p.id)}">
         <div class="activity-title">${sanitize(p.title)}</div>
-        <div class="activity-meta"><span>❤️ ${likeCount}</span><span>💬 ${p.comments}</span><span>📅 ${new Date(p.date).toLocaleDateString()}</span></div>
+        <div class="activity-meta"><span>❤️ ${likeCount}</span><span>💬 ${commentCount}</span><span>📅 ${new Date(p.date).toLocaleDateString()}</span></div>
       </div>
-    `).join('');
+    `;
+  }).join('');
   list.querySelectorAll('.activity-item').forEach(item => {
     item.addEventListener('click', () => { closeModal('profileModal'); openViewPost(item.dataset.pid); });
   });
@@ -2350,7 +2665,7 @@ document.getElementById('profileImageUpload')?.addEventListener('change', e => {
   reader.readAsDataURL(file);
 });
 
-document.getElementById('saveProfileDisplayBtn')?.addEventListener('click', () => {
+document.getElementById('saveProfileDisplayBtn')?.addEventListener('click', async () => {
   const session = Store.get('session');
   const users = Store.get('users');
   const me = users.find(u => u.username === session.username);
@@ -2364,7 +2679,7 @@ document.getElementById('saveProfileDisplayBtn')?.addEventListener('click', () =
   me.profilePicture = newB64 || null;
 
   Store.set('users', users);
-  if (sbClient) sbClient.from('users').update({profilePicture: me.profilePicture, displayName: me.displayName, bio: me.bio, youtube: me.youtube, discord: me.discord}).eq('id', me.id);
+  if (sbClient) await sbClient.from('users').update({ profilePicture: me.profilePicture, displayName: me.displayName, bio: me.bio, youtube: me.youtube, discord: me.discord }).eq('id', me.id);
   updateNavForSession();
   renderForum();
 
@@ -2372,7 +2687,7 @@ document.getElementById('saveProfileDisplayBtn')?.addEventListener('click', () =
   if (succ) { succ.removeAttribute('hidden'); setTimeout(() => { succ.setAttribute('hidden', ''); }, 3000); }
 });
 
-document.getElementById('saveUsernameBtn')?.addEventListener('click', () => {
+document.getElementById('saveUsernameBtn')?.addEventListener('click', async () => {
   const newName = document.getElementById('profileNewUsername').value.trim();
   const session = Store.get('session');
   const users = Store.get('users');
@@ -2395,50 +2710,72 @@ document.getElementById('saveUsernameBtn')?.addEventListener('click', () => {
 
   session.username = newName;
   Store.set('session', session);
-  if (sbClient) sbClient.from('users').update({username: newName, lastUsernameChange: me.lastUsernameChange}).eq('id', me.id);
+  if (sbClient) await sbClient.from('users').update({ username: newName, lastUsernameChange: me.lastUsernameChange }).eq('id', me.id);
   alert('Username updated successfully!');
   updateNavForSession();
   renderForum();
 });
 
 document.getElementById('savePasswordBtn')?.addEventListener('click', async () => {
-  const currPass = document.getElementById('profileCurrentPass').value;
-  const newPass = document.getElementById('profileNewPass').value;
-  const err = document.getElementById('profileAccountError');
-  const succ = document.getElementById('profileAccountSuccess');
-  if (err) err.setAttribute('hidden', '');
-  if (succ) succ.style.display = 'none';
+  try {
+    const currPass = document.getElementById('profileCurrentPass').value;
+    const newPass = document.getElementById('profileNewPass').value;
+    const err = document.getElementById('profileAccountError');
+    const succ = document.getElementById('profileAccountSuccess');
+    if (err) err.setAttribute('hidden', '');
+    if (succ) succ.style.display = 'none';
 
-  if (!currPass || newPass.length < 6) {
-    if (err) { err.textContent = 'Enter current password and a new password (min 6 chars).'; err.removeAttribute('hidden'); }
-    return;
+    if (!currPass || newPass.length < 6) {
+      if (err) { err.textContent = 'Enter current password and a new password (min 6 chars).'; err.removeAttribute('hidden'); }
+      return;
+    }
+
+    const session = Store.get('session');
+    if (!session || !sbClient) return;
+
+    // Re-verify current password before allowing the change
+    const { error: reAuthError } = await Auth.signIn(session.username, currPass);
+    if (reAuthError) {
+      if (err) { err.textContent = 'Current password is incorrect.'; err.removeAttribute('hidden'); }
+      return;
+    }
+
+    // We temporarily store the desired new password while we send a confirmation email.
+    // When they click the email link, forgot-password.js will retrieve this to finish the actual password update.
+    localStorage.setItem('ps_pending_new_password', newPass);
+
+    const userRes = await sbClient.auth.getUser();
+    if (userRes.error || !userRes.data?.user?.email) {
+      if (err) { err.textContent = 'Could not retrieve email for password verification.'; err.removeAttribute('hidden'); }
+      return;
+    }
+
+    // Trigger the generic password recovery flow which essentially acts as our change-confirmation.
+    const { error: resetError } = await sbClient.auth.resetPasswordForEmail(userRes.data.user.email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+
+    if (resetError) {
+      if (err) { err.textContent = 'Error sending verify email: ' + resetError.message; err.removeAttribute('hidden'); }
+      return;
+    }
+
+    if (succ) {
+      succ.textContent = 'Please verify the changes in your email (Gmail) to finish updating your password.';
+      succ.style.display = 'flex'; // Use flex or block based on original css
+      succ.removeAttribute('hidden');
+      // keep it showing for a bit longer so they can read it
+      setTimeout(() => { succ.setAttribute('hidden', ''); succ.style.display = 'none'; }, 8000);
+    }
+    document.getElementById('profileCurrentPass').value = '';
+    document.getElementById('profileNewPass').value = '';
+  } catch (e) {
+    console.error(e);
+    alert('An unexpected error occurred: ' + e.message);
   }
-
-  const session = Store.get('session');
-  if (!session || !sbClient) return;
-
-  // Re-verify current password before allowing the change
-  const { error: reAuthError } = await Auth.signIn(session.username, currPass);
-  if (reAuthError) {
-    if (err) { err.textContent = 'Current password is incorrect.'; err.removeAttribute('hidden'); }
-    return;
-  }
-
-  const { error: updateError } = await sbClient.auth.updateUser({ password: newPass });
-  if (updateError) {
-    if (err) { err.textContent = 'Error updating password: ' + updateError.message; err.removeAttribute('hidden'); }
-    return;
-  }
-
-  if (succ) { succ.removeAttribute('hidden'); setTimeout(() => { succ.setAttribute('hidden', ''); }, 3000); }
-  document.getElementById('profileCurrentPass').value = '';
-  document.getElementById('profileNewPass').value = '';
 });
 
-document.getElementById('profileSignOutBtn')?.addEventListener('click', () => {
-  closeModal('profileModal');
-  signOut();
-});
+
 
 const openPublicProfile = (userId) => {
   const users = Store.get('users');
@@ -2464,17 +2801,20 @@ const openPublicProfile = (userId) => {
   if (u.discord) sHTML += `<span style="padding:0.3rem 0.6rem; border-radius:10px; background:rgba(88,101,242,0.1); color:#8899fa; font-size:0.8rem;">💬 ${sanitize(u.discord)}</span>`;
   socials.innerHTML = sHTML;
 
-  const posts = Store.get('posts').filter(p => p.userId === u.id).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+  const posts = Store.get('posts').filter(p => p.userId === u.username).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
   const activityList = document.getElementById('publicActivityList');
   if (!posts.length) {
     activityList.innerHTML = `<p style="color:var(--mid); font-size:0.85rem; text-align:center;">No posts yet.</p>`;
   } else {
-    activityList.innerHTML = posts.map(p => `
+    activityList.innerHTML = posts.map(p => {
+      const likeCount = (Store.get('likes') || []).filter(l => l.postId === p.id).length;
+      return `
          <div class="activity-item" data-pid="${sanitize(p.id)}" style="padding:0.8rem; text-align:left;">
            <div class="activity-title" style="font-size:0.95rem;">${sanitize(p.title)}</div>
            <div class="activity-meta"><span>❤️ ${likeCount}</span><span>📅 ${new Date(p.date).toLocaleDateString()}</span></div>
          </div>
-       `).join('');
+      `;
+    }).join('');
     activityList.querySelectorAll('.activity-item').forEach(item => {
       item.addEventListener('click', () => { closeModal('publicProfileModal'); openViewPost(item.dataset.pid); });
     });
@@ -2528,6 +2868,80 @@ document.querySelectorAll('input[type="password"]').forEach(input => {
     toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     input.focus();
   });
+});
+// --- Lessons Admin Logic ---
+document.getElementById('lessonClose')?.addEventListener('click', () => {
+  document.getElementById('lessonModal').hidden = true;
+});
+document.getElementById('lessonSubmit')?.addEventListener('click', async () => {
+  const err = document.getElementById('lessonError');
+  err.hidden = true;
+  
+  const id = document.getElementById('lessonId').value || crypto.randomUUID();
+  const step = document.getElementById('lessonStep').value;
+  const tab = document.getElementById('lessonTab').value;
+  const sectionStr = document.getElementById('lessonSection').value.trim();
+  const title = document.getElementById('lessonTitle').value.trim();
+  const desc = document.getElementById('lessonDescription').value.trim();
+  const icon = document.getElementById('lessonIcon').value || '📚';
+  const status = document.getElementById('lessonStatus').value;
+  const vidUrlRaw = document.getElementById('lessonVideoUrl').value.trim();
+  let contentHtml = document.getElementById('lessonContent').value.trim();
+
+  if (!step || !title || !sectionStr) {
+    err.textContent = "Step Number, Section Name, and Title are required.";
+    err.hidden = false;
+    return;
+  }
+
+  // Parse YouTube ID
+  let vidId = '';
+  if (vidUrlRaw) {
+    const match = vidUrlRaw.match(/(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+    if (match && match[1]) vidId = match[1];
+  }
+
+  // Prevent double iframes if editing
+  if (vidId && !contentHtml.includes('youtube-embed-wrapper')) {
+    contentHtml = `<div class="youtube-embed-wrapper" style="margin-bottom:1.5rem;"><iframe width="100%" height="315" src="https://www.youtube.com/embed/${vidId}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>` + contentHtml;
+  }
+
+  const payload = {
+    id,
+    step_number: parseFloat(step) || 1, // Cast to integer/float to satisfy Supabase
+    tab_level: tab,
+    section: sectionStr,
+    title,
+    description: desc,
+    icon,
+    status,
+    content: contentHtml,
+  };
+
+  const oldLessons = Store.get('lessons') || [];
+  const existingIdx = oldLessons.findIndex(l => l.id === id);
+  if (existingIdx > -1) oldLessons[existingIdx] = payload;
+  else oldLessons.push(payload);
+  
+  try {
+    const oldBtnText = document.getElementById('lessonSubmit').textContent;
+    document.getElementById('lessonSubmit').textContent = 'Saving...';
+    
+    if (sbClient) {
+      const { error } = await sbClient.from('lessons').upsert(payload);
+      if (error) throw error;
+    }
+    
+    Store.set('lessons', oldLessons);
+    document.getElementById('lessonModal').hidden = true;
+    if(typeof renderAdminPanel === 'function') renderAdminPanel('lessons');
+    document.getElementById('lessonSubmit').textContent = oldBtnText;
+  } catch (e) {
+    console.error("Save Lesson Error:", e);
+    document.getElementById('lessonSubmit').textContent = 'Save Lesson';
+    err.textContent = "Error saving lesson: " + (e?.message || JSON.stringify(e) || "Unknown error");
+    err.hidden = false;
+  }
 });
 
 // Initialise Supabase Auth — restores existing session and listens for auth state changes

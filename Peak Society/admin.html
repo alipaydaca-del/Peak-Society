@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://www.youtube.com https://i.ytimg.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https://i.ytimg.com https://img.youtube.com https://*.supabase.co data: blob:; frame-src https://www.youtube.com;" />
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <meta name="description" content="Peak Society — Admin Portal" />
+  <title>Admin Portal || Peak Society</title>
+  <link rel="icon" type="image/png" href="assets/PS.png">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+    }
+
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      background: url('assets/noise.png') repeat;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .admin-standalone {
+      position: relative;
+      z-index: 2;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .admin-layout {
+      height: 100vh;
+      width: 100vw;
+      max-width: none;
+      border-radius: 0;
+      border: none;
+    }
+
+    .admin-sidebar {
+      padding-top: 2rem;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .admin-main {
+      padding: 2rem;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- CURSOR -->
+  <div class="custom-cursor" id="cursor" aria-hidden="true"></div>
+  <div class="custom-cursor-dot" id="cursorDot" aria-hidden="true"></div>
+
+  <!-- ADMIN LOGIN MODAL (Gating access) -->
+  <div class="modal-backdrop" id="adminAuthModal" role="dialog" aria-modal="true" aria-label="Admin login" hidden>
+    <div class="modal">
+      <div class="modal-body">
+        <div class="modal-icon" aria-hidden="true">🔒</div>
+        <h2>Admin Portal</h2>
+        <p class="modal-sub">Restricted access</p>
+        <div id="adminAuthError" class="auth-error" role="alert" aria-live="polite" hidden></div>
+        <input type="text" id="adminAuthUser" class="form-input" placeholder="Admin username" autocomplete="username"
+          maxlength="32" />
+        <input type="password" id="adminAuthPass" class="form-input" placeholder="Password"
+          autocomplete="current-password" maxlength="64" />
+        <button class="btn-primary btn-full" id="adminAuthSubmit">Enter Portal</button>
+        <div style="margin-top: 1.5rem; text-align: center;">
+          <a href="index.html" class="btn-ghost btn-sm" style="color: var(--mid);">Return to Main Site</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PORTAL TEMPLATE (Extracted from DOM for security) -->
+  <template id="adminTemplate">
+    <div class="admin-layout">
+      <aside class="admin-sidebar" role="navigation" aria-label="Admin sections">
+        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;" class="admin-sidebar-header">
+          <div class="admin-logo" style="margin:0;">⚡ ADMIN</div>
+          <button class="nav-hamburger admin-hamburger" id="adminHamburger" aria-label="Toggle menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+        <nav id="adminNav">
+          <button class="admin-nav-item active" data-panel="dashboard">Dashboard</button>
+          <button class="admin-nav-item" data-panel="announcements">Announcements</button>
+          <button class="admin-nav-item" data-panel="posts">Forum Posts</button>
+          <button class="admin-nav-item" data-panel="users">Users</button>
+          <button class="admin-nav-item" data-panel="lessons">Lessons</button>
+          <button class="admin-nav-item" data-panel="reports">Report Logs</button>
+          <button class="admin-nav-item" data-panel="audit">Audit Log</button>
+          <button class="admin-nav-item" data-panel="status">Status</button>
+          <div class="admin-user-info" id="adminUserInfo"></div>
+          <button class="btn-ghost btn-sm admin-logout" id="adminLogout"
+            style="border: 1px solid var(--border); margin-bottom: 0.5rem; width:100%;">Log Out</button>
+          <a href="index.html" class="btn-ghost btn-sm admin-logout"
+            style="text-align: center; color: var(--mid); text-decoration: none; width:100%;">Return to Site</a>
+        </nav>
+      </aside>
+      <main class="admin-main" id="adminMain" role="main">
+        <!-- panels injected by JS -->
+      </main>
+    </div>
+  </template>
+
+  <!-- ADMIN PORTAL (Main layout, hidden until auth) -->
+  <div class="admin-standalone" id="adminModal" hidden>
+  </div>
+
+  <!-- Announcement Composer Modal -->
+  <div class="modal-backdrop" id="composerModal" role="dialog" aria-modal="true" aria-label="Compose announcement"
+    hidden>
+    <div class="modal modal-wide">
+      <button class="modal-close" id="composerClose" aria-label="Close">&times;</button>
+      <div class="modal-body">
+        <h2>Post Announcement</h2>
+        <div class="form-group">
+          <label for="announcementSubject" class="form-label">Subject / Title</label>
+          <input type="text" id="announcementSubject" class="form-input" placeholder="Announcement title…"
+            maxlength="120" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Content</label>
+          <div class="rich-toolbar" role="toolbar" aria-label="Text formatting">
+            <button class="toolbar-btn" data-cmd="bold" title="Bold"><strong>B</strong></button>
+            <button class="toolbar-btn" data-cmd="italic" title="Italic"><em>I</em></button>
+            <button class="toolbar-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <button class="toolbar-btn" data-cmd="insertUnorderedList" title="Bullet list">≡</button>
+            <button class="toolbar-btn" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <button class="toolbar-btn" data-cmd="justifyLeft" title="Left align">←</button>
+            <button class="toolbar-btn" data-cmd="justifyCenter" title="Center">↔</button>
+            <div class="toolbar-sep" aria-hidden="true"></div>
+            <label class="toolbar-btn color-btn" title="Text color">
+              A
+              <input type="color" id="textColorPicker" value="#ffffff" aria-label="Text color" />
+            </label>
+            <button class="toolbar-btn" data-cmd="removeFormat" title="Clear formatting">✕</button>
+          </div>
+          <div id="announcementBody" class="rich-editor" contenteditable="true" role="textbox" aria-multiline="true"
+            aria-label="Announcement content" placeholder="Write your announcement…"></div>
+        </div>
+        <div id="composerError" class="auth-error" role="alert" aria-live="polite" hidden></div>
+        <button class="btn-primary btn-full" id="composerSubmit">Publish Announcement</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Action Modal -->
+  <div class="modal-backdrop" id="confirmModal" role="dialog" aria-modal="true" aria-label="Confirm action" hidden>
+    <div class="modal" style="max-width:440px;">
+      <button class="modal-close" id="confirmClose" aria-label="Close">&times;</button>
+      <div class="modal-body">
+        <h2 id="confirmTitle" style="font-size:1.2rem; margin-bottom:1rem;">This page says</h2>
+        <p id="confirmMessage" style="color:var(--mid); margin-bottom:2rem; font-size:0.95rem; line-height:1.5;">Are you
+          certain you want to perform this action?</p>
+        <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+          <button class="btn-ghost btn-sm" id="confirmCancelBtn" style="min-width:100px;">Cancel</button>
+          <button class="btn-primary btn-sm" id="confirmAcceptBtn" style="min-width:100px;">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lesson Composer Modal -->
+  <div class="modal-backdrop" id="lessonModal" role="dialog" aria-modal="true" aria-label="Compose lesson" hidden>
+    <div class="modal modal-wide" style="max-height:90vh; overflow-y:auto; max-width:800px;">
+      <button class="modal-close" id="lessonClose" aria-label="Close">&times;</button>
+      <div class="modal-body">
+        <h2 id="lessonModalTitle">Create Lesson</h2>
+        <input type="hidden" id="lessonId" />
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+          <div class="form-group">
+            <label for="lessonStep" class="form-label">Step Number (e.g. 1.0, 1.1)</label>
+            <input type="number" step="0.1" id="lessonStep" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label for="lessonTab" class="form-label">Tab Level</label>
+            <select id="lessonTab" class="form-input" required>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="lessonSection" class="form-label">Section Name (e.g. 'Mindset', 'Monetization')</label>
+          <input type="text" id="lessonSection" class="form-input" required />
+        </div>
+
+        <div class="form-group">
+          <label for="lessonTitle" class="form-label">Lesson Title</label>
+          <input type="text" id="lessonTitle" class="form-input" required />
+        </div>
+
+        <div class="form-group">
+          <label for="lessonDescription" class="form-label">Short Description</label>
+          <textarea id="lessonDescription" class="form-input" rows="2"></textarea>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+          <div class="form-group">
+            <label for="lessonIcon" class="form-label">Icon (Emoji or SVG)</label>
+            <input type="text" id="lessonIcon" class="form-input" placeholder="📚" value="📚" />
+          </div>
+          <div class="form-group">
+            <label for="lessonStatus" class="form-label">Status</label>
+            <select id="lessonStatus" class="form-input">
+              <option value="Published">Published</option>
+              <option value="Draft">Draft</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:1rem;">
+          <label for="lessonVideoUrl" class="form-label" style="color:var(--primary);">YouTube Video URL (Optional)</label>
+          <input type="url" id="lessonVideoUrl" class="form-input" placeholder="https://youtube.com/watch?v=..." />
+          <small style="color:var(--mid); font-size:0.8rem;">We will automatically extract the ID and embed a playable iframe at the top of the lesson.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Lesson Text Content (HTML)</label>
+          <textarea id="lessonContent" class="form-input" rows="8" placeholder="Write additional text or HTML content here..."></textarea>
+        </div>
+
+        <div id="lessonError" class="auth-error" role="alert" aria-live="polite" hidden></div>
+        <div style="margin-bottom:2rem;"></div>
+        <button class="btn-primary btn-full" id="lessonSubmit">Save Lesson</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js?v=5"></script>
+  <script src="auth.js"></script>
+  <script src="app.js?v=9"></script>
+</body>
+
+</html>
