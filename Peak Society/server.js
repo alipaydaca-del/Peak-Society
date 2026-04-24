@@ -36,7 +36,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let filePath = path.join(__dirname, urlPath === '/' ? 'index.html' : urlPath);
+  let decodedUrl = '';
+  try {
+    decodedUrl = decodeURIComponent(urlPath === '/' ? '/index.html' : urlPath);
+  } catch (e) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('400 Bad Request');
+    return;
+  }
+
+  const safePath = path.normalize(decodedUrl).replace(/^(\.\.[\/\\])+/, '');
+  let filePath = path.join(__dirname, safePath);
+  
+  // SECURITY PATCH: Prevent Directory Traversal (LFI)
+  if (!filePath.startsWith(__dirname)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('403 Forbidden - Directory Traversal Detected');
+    return;
+  }
+
   const ext = path.extname(filePath);
   const contentType = mimeTypes[ext] || 'application/octet-stream';
 
@@ -46,10 +64,22 @@ const server = http.createServer((req, res) => {
       res.end('404 Not Found');
       return;
     }
-    res.writeHead(200, {
+    
+    const headers = {
       'Content-Type': contentType,
       'X-Frame-Options': 'DENY',
-    });
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "object-src 'none';"
+    };
+
+    // Cache-Control for massive frontend payloads (e.g. app.js)
+    if (['.js', '.css', '.png', '.jpg', '.jpeg', '.webp', '.woff2'].includes(ext)) {
+      headers['Cache-Control'] = 'public, max-age=86400';
+    } else {
+      headers['Cache-Control'] = 'no-cache';
+    }
+
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
