@@ -101,7 +101,789 @@
 
 
 
-  <!-- View Lesson Modal -->
+  <!-- Auth Modal -->
+    <div
+      class="modal-backdrop"
+      id="authModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Sign in"
+      hidden
+    >
+      <div class="modal">
+        <button class="modal-close" id="authModalClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <div class="modal-icon" aria-hidden="true">⚡</div>
+          <h2>Welcome back</h2>
+          <p class="modal-sub">Sign in to post in the community</p>
+          <div
+            id="authError"
+            class="auth-error"
+            role="alert"
+            aria-live="polite"
+            hidden
+          ></div>
+          <div
+            id="authSuccess"
+            class="auth-error"
+            role="status"
+            aria-live="polite"
+            style="
+              background: rgba(34, 197, 94, 0.12);
+              color: #22c55e;
+              border-color: rgba(34, 197, 94, 0.3);
+            "
+            hidden
+          >
+            Verification link sent! Check your email inbox to verify your
+            account.
+          </div>
+          <input
+            type="text"
+            id="authUsername"
+            class="form-input"
+            placeholder="Username"
+            autocomplete="username"
+            maxlength="32"
+          />
+          <input
+            type="email"
+            id="authEmail"
+            class="form-input"
+            placeholder="Email address"
+            autocomplete="email"
+            maxlength="254"
+            style="display: none"
+          />
+          <input
+            type="password"
+            id="authPassword"
+            class="form-input"
+            placeholder="Password"
+            autocomplete="current-password"
+            maxlength="64"
+          />
+          <button class="btn-primary btn-full" id="authSubmit">Sign In</button>
+          <button
+            class="btn-ghost btn-full btn-sm"
+            id="authForgotPassword"
+            style="font-size: 0.8rem; padding: 0.35rem 0.5rem; opacity: 0.75"
+          >
+            Forgot password?
+          </button>
+          <button class="btn-ghost btn-full btn-sm" id="authRegisterToggle">
+            Create account
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div
+      class="modal-backdrop"
+      id="forgotPasswordModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Forgot password"
+      hidden
+    >
+      <div class="modal">
+        <button class="modal-close" id="fpClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <div class="modal-icon" aria-hidden="true">🔑</div>
+          <h2>Forgot Password</h2>
+          <p class="modal-sub">
+            Enter your email and we'll send you a reset link.
+          </p>
+          <div
+            id="fpError"
+            class="auth-error"
+            role="alert"
+            aria-live="polite"
+            hidden
+          ></div>
+          <div
+            id="fpSuccess"
+            class="auth-error"
+            role="status"
+            aria-live="polite"
+            style="
+              background: rgba(34, 197, 94, 0.12);
+              color: #22c55e;
+              border-color: rgba(34, 197, 94, 0.3);
+            "
+            hidden
+          >
+            Reset link sent! Check your email inbox.
+          </div>
+          <input
+            type="email"
+            id="fpEmail"
+            class="form-input"
+            placeholder="Email address"
+            autocomplete="email"
+            maxlength="254"
+          />
+          <button class="btn-primary btn-full" id="fpSubmit">
+            Send Reset Link
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset Password Modal (shown after user clicks email link) -->
+    <div
+      class="modal-backdrop"
+      id="resetPasswordModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Reset password"
+      hidden
+    >
+      <div class="modal">
+        <button class="modal-close" id="rpClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <div class="modal-icon" aria-hidden="true">🔒</div>
+          <h2>Set New Password</h2>
+          <p class="modal-sub">Choose a new password for your account.</p>
+          <div
+            id="rpError"
+            class="auth-error"
+            role="alert"
+            aria-live="polite"
+            hidden
+          ></div>
+          <div
+            id="rpSuccess"
+            class="auth-error"
+            role="status"
+            aria-live="polite"
+            style="
+              background: rgba(34, 197, 94, 0.12);
+              color: #22c55e;
+              border-color: rgba(34, 197, 94, 0.3);
+            "
+            hidden
+          >
+            Password updated! You can now sign in.
+          </div>
+          <input
+            type="password"
+            id="rpNewPassword"
+            class="form-input"
+            placeholder="New password"
+            autocomplete="new-password"
+            maxlength="64"
+          />
+          <input
+            type="password"
+            id="rpConfirmPassword"
+            class="form-input"
+            placeholder="Confirm new password"
+            autocomplete="new-password"
+            maxlength="64"
+          />
+          <button class="btn-primary btn-full" id="rpSubmit">
+            Set New Password
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Post Modal -->
+    <div
+      class="modal-backdrop"
+      id="postModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create post"
+      hidden
+    >
+      <div class="modal modal-wide">
+        <button class="modal-close" id="postModalClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <h2>New Post</h2>
+          <div class="form-group">
+            <label for="postCategory" class="form-label">Category</label>
+            <select id="postCategory" class="form-input form-select">
+              <option value="wins">🥇 Win</option>
+              <option value="questions">❓ Question</option>
+              <option value="tutorial-requests">🎬 Tutorial Request</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="postTitle" class="form-label">Title</label>
+            <input
+              type="text"
+              id="postTitle"
+              class="form-input"
+              placeholder="Write a descriptive title…"
+              maxlength="120"
+            />
+          </div>
+          <div class="form-group">
+            <label for="postBody" class="form-label">Content</label>
+            <textarea
+              id="postBody"
+              class="form-input form-textarea"
+              placeholder="Share your story, question, or request…"
+              maxlength="1500"
+              rows="5"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="postImageBtn" class="form-label"
+              >Attach Image (Optional)</label
+            >
+            <input
+              type="file"
+              id="postImageBtn"
+              accept="image/*"
+              class="form-input"
+              style="padding: 0.5rem; font-size: 0.85rem"
+            />
+          </div>
+          <div
+            id="postError"
+            class="auth-error"
+            role="alert"
+            aria-live="polite"
+            hidden
+          ></div>
+          <button class="btn-primary btn-full" id="postSubmit">
+            Publish Post
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Post Modal -->
+    <div
+      class="modal-backdrop"
+      id="viewPostModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="View post"
+      hidden
+    >
+      <div class="modal modal-wide">
+        <button class="modal-close" id="viewPostClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body" id="viewPostBody">
+          <!-- populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- View Announcement Modal -->
+    <div
+      class="modal-backdrop"
+      id="viewAnnouncementModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="View announcement"
+      hidden
+    >
+      <div class="modal modal-wide">
+        <button
+          class="modal-close"
+          id="viewAnnouncementClose"
+          aria-label="Close"
+        >
+          &times;
+        </button>
+        <div class="modal-body" id="viewAnnouncementBody">
+          <!-- populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Post Modal -->
+    <div
+      class="modal-backdrop"
+      id="reportModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Report post"
+      hidden
+    >
+      <div class="modal">
+        <button class="modal-close" id="reportModalClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <h2>Report Post</h2>
+          <p class="modal-sub">Help us keep the community safe.</p>
+          <div class="form-group">
+            <label for="reportReason" class="form-label"
+              >Reason for Reporting</label
+            >
+            <select id="reportReason" class="form-input form-select">
+              <option value="Spam or Misleading">Spam or Misleading</option>
+              <option value="Harassment or Abuse">Harassment or Abuse</option>
+              <option value="Inappropriate Content">
+                Inappropriate Content
+              </option>
+              <option value="Other">Other / Custom Reason</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="reportMessage" class="form-label"
+              >Additional Details (Optional)</label
+            >
+            <textarea
+              id="reportMessage"
+              class="form-input form-textarea"
+              placeholder="Provide more context to help administrators..."
+              maxlength="500"
+              rows="4"
+            ></textarea>
+          </div>
+          <input type="hidden" id="reportPostId" value="" />
+          <button
+            class="btn-primary btn-full"
+            id="reportSubmitBtn"
+            style="
+              background-color: var(--error);
+              border-color: var(--error);
+              margin-top: 0.5rem;
+            "
+          >
+            Submit Report
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Action Modal -->
+    <div
+      class="modal-backdrop"
+      id="confirmModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm action"
+      hidden
+    >
+      <div class="modal" style="max-width: 440px">
+        <button class="modal-close" id="confirmClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="modal-body">
+          <h2 id="confirmTitle" style="font-size: 1.2rem; margin-bottom: 1rem">
+            This page says
+          </h2>
+          <p
+            id="confirmMessage"
+            style="
+              color: var(--mid);
+              margin-bottom: 2rem;
+              font-size: 0.95rem;
+              line-height: 1.5;
+            "
+          >
+            Are you certain you want to permanently delete this post?
+          </p>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem">
+            <button
+              class="btn-ghost btn-sm"
+              id="confirmCancelBtn"
+              style="min-width: 100px"
+            >
+              Cancel
+            </button>
+            <button
+              class="btn-primary btn-sm"
+              id="confirmAcceptBtn"
+              style="min-width: 100px"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Management Modal -->
+    <div
+      class="modal-backdrop"
+      id="profileModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Profile Management"
+      hidden
+    >
+      <div class="modal modal-wide profile-modal">
+        <button class="modal-close" id="profileModalClose" aria-label="Close">
+          &times;
+        </button>
+        <div class="profile-layout">
+          <aside class="profile-sidebar">
+            <ul class="profile-tabs" role="tablist">
+              <li
+                class="profile-tab active"
+                role="tab"
+                data-target="profileDisplay"
+              >
+                Profile Display
+              </li>
+              <li class="profile-tab" role="tab" data-target="profileAccount">
+                Account Settings
+              </li>
+              <li class="profile-tab" role="tab" data-target="profileActivity">
+                My Activity
+              </li>
+            </ul>
+          </aside>
+          <main class="profile-content">
+            <!-- Profile View -->
+            <div id="profileDisplay" class="profile-panel active">
+              <h2>Profile Display</h2>
+              <p class="modal-sub">
+                Customize how you appear to others in the Peak Society.
+              </p>
+              <div class="profile-edit-header">
+                <div class="profile-avatar-large" id="profileEditAvatar">
+                  <div class="profile-avatar-overlay">Upload</div>
+                  <input
+                    type="file"
+                    id="profileImageUpload"
+                    accept="image/png, image/jpeg"
+                    style="display: none"
+                  />
+                </div>
+                <div style="flex: 1; width: 100%">
+                  <label for="profileDisplayName" class="form-label"
+                    >Display Name</label
+                  >
+                  <input
+                    type="text"
+                    id="profileDisplayName"
+                    class="form-input"
+                    placeholder="Display Name..."
+                    maxlength="30"
+                  />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="profileBio" class="form-label">Bio</label>
+                <textarea
+                  id="profileBio"
+                  class="form-input form-textarea"
+                  placeholder="Tell the community about yourself..."
+                  rows="3"
+                  maxlength="250"
+                ></textarea>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  margin-top: 1.5rem;
+                "
+              >
+                <span
+                  id="profileDisplaySuccess"
+                  hidden
+                  style="
+                    color: var(--success);
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                  "
+                  >Saved!</span
+                >
+                <button
+                  class="btn-primary"
+                  id="saveProfileDisplayBtn"
+                  style="margin-left: auto"
+                >
+                  Save Profile
+                </button>
+              </div>
+            </div>
+
+            <!-- Account Settings -->
+            <div id="profileAccount" class="profile-panel" hidden>
+              <h2>Account Settings</h2>
+              <p class="modal-sub">Manage your security and credentials.</p>
+              <div class="form-group" style="margin-top: 2rem">
+                <label for="profileNewUsername" class="form-label"
+                  >Change Username
+                  <span style="color: var(--error)">(14-day lock)</span></label
+                >
+                <input
+                  type="text"
+                  id="profileNewUsername"
+                  class="form-input"
+                  placeholder="New Username..."
+                  maxlength="32"
+                />
+                <div
+                  style="
+                    font-size: 0.75rem;
+                    color: var(--mid);
+                    margin-top: 0.4rem;
+                  "
+                  id="usernameLockLabel"
+                ></div>
+              </div>
+              <button
+                class="btn-ghost"
+                id="saveUsernameBtn"
+                style="border: 1px solid var(--border); margin-bottom: 2rem"
+              >
+                Update Username
+              </button>
+
+              <hr
+                style="
+                  border: 0;
+                  border-top: 1px solid var(--border);
+                  margin-bottom: 2rem;
+                "
+              />
+
+              <div id="passwordUpdateSection">
+                <div class="form-group">
+                  <label for="profileCurrentPass" class="form-label"
+                    >Current Password</label
+                  >
+                  <input
+                    type="password"
+                    id="profileCurrentPass"
+                    class="form-input"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="profileNewPass" class="form-label"
+                    >New Password</label
+                  >
+                  <input
+                    type="password"
+                    id="profileNewPass"
+                    class="form-input"
+                  />
+                </div>
+                <button
+                  class="btn-ghost"
+                  id="savePasswordBtn"
+                  style="border: 1px solid var(--border)"
+                >
+                  Update Password
+                </button>
+                <div
+                  id="profileAccountError"
+                  class="auth-error"
+                  role="alert"
+                  style="margin-top: 1rem"
+                  hidden
+                ></div>
+                <div
+                  id="profileAccountSuccess"
+                  hidden
+                  style="
+                    color: var(--white);
+                    font-size: 0.85rem;
+                    margin-top: 1rem;
+                  "
+                >
+                  Success!
+                </div>
+              </div>
+
+              <hr
+                style="
+                  border: 0;
+                  border-top: 1px solid var(--border);
+                  margin-top: 2rem;
+                  margin-bottom: 2rem;
+                "
+              />
+
+              <div
+                id="deleteAccountConfirmation"
+                style="
+                  display: none;
+                  margin-bottom: 2rem;
+                  padding: 1rem;
+                  border: 1px solid var(--error);
+                  border-radius: 8px;
+                "
+              >
+                <p
+                  style="
+                    color: var(--error);
+                    font-size: 0.9rem;
+                    margin-bottom: 1rem;
+                  "
+                >
+                  DANGER: This will permanently delete your account and all
+                  data.
+                </p>
+                <div class="form-group">
+                  <label
+                    for="profileDeletePass"
+                    class="form-label"
+                    style="color: var(--error)"
+                    >Enter Current Password</label
+                  >
+                  <input
+                    type="password"
+                    id="profileDeletePass"
+                    class="form-input"
+                    placeholder="Password"
+                  />
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1rem">
+                  <button
+                    class="btn-ghost"
+                    id="cancelDeleteBtn"
+                    style="
+                      color: var(--mid);
+                      border: 1px solid var(--border-light);
+                      width: 100%;
+                    "
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="btn-primary"
+                    id="confirmDeleteAccountBtn"
+                    style="background: var(--error); width: 100%"
+                  >
+                    Confirm Delete
+                  </button>
+                </div>
+              </div>
+
+              <div id="profileFooterActions" style="display: flex; gap: 1rem">
+                <button
+                  class="btn-ghost"
+                  id="profileSignOutBtn"
+                  style="
+                    color: var(--mid);
+                    border: 1px solid var(--border-light);
+                    width: 100%;
+                  "
+                >
+                  Log Out
+                </button>
+                <button
+                  class="btn-ghost"
+                  id="profileDeleteAccountBtn"
+                  style="
+                    color: var(--error);
+                    border: 1px solid var(--error);
+                    width: 100%;
+                  "
+                >
+                  Delete Account
+                </button>
+              </div>
+            </div>
+
+            <!-- My Activity -->
+            <div id="profileActivity" class="profile-panel" hidden>
+              <h2>My Activity</h2>
+              <p class="modal-sub">Your recent forum posts.</p>
+              <div id="profileActivityList" class="activity-list">
+                <!-- JS Populated -->
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- Public Profile View Modal -->
+    <div
+      class="modal-backdrop"
+      id="publicProfileModal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Public Profile"
+      hidden
+    >
+      <div class="modal" style="max-width: 500px; padding: 0">
+        <button
+          class="modal-close"
+          id="publicProfileClose"
+          aria-label="Close"
+          style="top: 1.5rem; right: 1.5rem"
+        >
+          &times;
+        </button>
+        <div class="public-profile-card">
+          <div class="public-profile-header">
+            <div
+              class="profile-avatar-large"
+              id="publicAvatarBox"
+              style="margin: 0 auto; border: 4px solid #111"
+            ></div>
+          </div>
+          <div class="public-profile-body">
+            <h2
+              id="publicUsername"
+              style="
+                text-align: center;
+                font-size: 1.6rem;
+                margin-bottom: 0.2rem;
+              "
+            >
+              Username
+            </h2>
+            <div
+              id="publicRoleBadge"
+              style="text-align: center; margin-bottom: 1.5rem"
+            ></div>
+            <div
+              id="publicBio"
+              style="
+                color: var(--mid);
+                text-align: center;
+                line-height: 1.6;
+                margin-bottom: 1.5rem;
+                font-size: 0.95rem;
+              "
+            ></div>
+            <div
+              id="publicSocials"
+              style="
+                display: flex;
+                justify-content: center;
+                gap: 1rem;
+                margin-bottom: 2rem;
+              "
+            ></div>
+
+            <h4
+              style="
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 0.5rem;
+                margin-bottom: 1rem;
+                font-size: 0.9rem;
+              "
+            >
+              Recent Posts
+            </h4>
+            <div id="publicActivityList" class="public-activity-list">
+              <!-- JS Populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- View Lesson Modal -->
   <div class="modal-backdrop" id="viewLessonModal" role="dialog" aria-modal="true" aria-label="View Lesson" hidden>
     <div class="modal modal-wide" style="max-height:85vh; overflow-y:auto; max-width:800px; position:relative; background: #0a0a0a; border:1px solid rgba(255,255,255,0.1);">
       <button class="modal-close" id="viewLessonClose" aria-label="Close" style="top:15px; right:15px; background:rgba(0,0,0,0.5); border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; padding:0; z-index:100;">&times;</button>
@@ -126,7 +908,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=5"></script>
   <script src="auth.js"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=11"></script>
   <script src="roadmap.js"></script>
 </body>
 </html>

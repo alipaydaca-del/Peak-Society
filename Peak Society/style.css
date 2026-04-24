@@ -17,9 +17,9 @@
   --yt-red: #ff0000;
   --discord-blue: #5865f2;
 
-  --font-display: 'Bebas Neue', 'Impact', sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'DM Mono', 'Fira Mono', monospace;
+  --font-display: "Bebas Neue", "Impact", sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", "Fira Mono", monospace;
 
   --radius: 4px;
   --radius-lg: 10px;
@@ -108,7 +108,9 @@ select {
   border-radius: 50%;
   pointer-events: none;
   z-index: 9999;
-  transition: transform 0.15s var(--ease-out), opacity 0.3s;
+  transition:
+    transform 0.15s var(--ease-out),
+    opacity 0.3s;
   transform: translate(-50%, -50%);
   mix-blend-mode: difference;
 }
@@ -295,7 +297,9 @@ em {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  transition: border-color 0.3s, background 0.3s;
+  transition:
+    border-color 0.3s,
+    background 0.3s;
 }
 
 #navbar.scrolled {
@@ -422,7 +426,11 @@ em {
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 60px 60px;
-  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 40%, transparent 100%);
+  mask-image: radial-gradient(
+    ellipse 70% 70% at 50% 50%,
+    black 40%,
+    transparent 100%
+  );
 }
 
 /* 3D Silver Play Button */
@@ -450,7 +458,7 @@ em {
   align-items: center;
   justify-content: center;
   /* Incredible realistic shadow cast by the 3D object */
-  filter: drop-shadow(15px 15px 25px rgba(0,0,0,0.8));
+  filter: drop-shadow(15px 15px 25px rgba(0, 0, 0, 0.8));
 }
 
 .cube.silver-play-button {
@@ -467,22 +475,33 @@ em {
   top: 50%;
   left: 50%;
   border: 1px solid #aaa;
-  background: linear-gradient(135deg, #e6e6e6 0%, #ffffff 40%, #b3b3b3 60%, #e6e6e6 100%);
+  background: linear-gradient(
+    135deg,
+    #e6e6e6 0%,
+    #ffffff 40%,
+    #b3b3b3 60%,
+    #e6e6e6 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 15px rgba(255,255,255,0.7);
+  box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.7);
   backface-visibility: hidden; /* Sometimes helps with 3d rendering z-fighting */
 }
 
 /* Give front face a more brushed metal look */
 .silver-play-button .front {
-  background: 
-    linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%),
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      rgba(255, 255, 255, 0) 100%
+    ),
     linear-gradient(135deg, #eaeaea 0%, #ffffff 30%, #bbbbbb 70%, #dfdfdf 100%);
 }
 
-.silver-play-button .front, 
+.silver-play-button .front,
 .silver-play-button .back {
   width: 270px;
   height: 360px;
@@ -491,28 +510,40 @@ em {
   border-radius: 4px;
 }
 
-.silver-play-button .front { transform: translateZ(16px); }
-.silver-play-button .back { transform: rotateY(180deg) translateZ(16px); }
+.silver-play-button .front {
+  transform: translateZ(16px);
+}
+.silver-play-button .back {
+  transform: rotateY(180deg) translateZ(16px);
+}
 
-.silver-play-button .left, 
+.silver-play-button .left,
 .silver-play-button .right {
   width: 32px;
   height: 360px;
   margin-left: -16px;
   margin-top: -180px;
 }
-.silver-play-button .left { transform: rotateY(-90deg) translateZ(135px); }
-.silver-play-button .right { transform: rotateY(90deg) translateZ(135px); }
+.silver-play-button .left {
+  transform: rotateY(-90deg) translateZ(135px);
+}
+.silver-play-button .right {
+  transform: rotateY(90deg) translateZ(135px);
+}
 
-.silver-play-button .top, 
+.silver-play-button .top,
 .silver-play-button .bottom {
   width: 270px;
   height: 32px;
   margin-left: -135px;
   margin-top: -16px;
 }
-.silver-play-button .top { transform: rotateX(90deg) translateZ(180px); }
-.silver-play-button .bottom { transform: rotateX(-90deg) translateZ(180px); }
+.silver-play-button .top {
+  transform: rotateX(90deg) translateZ(180px);
+}
+.silver-play-button .bottom {
+  transform: rotateX(-90deg) translateZ(180px);
+}
 
 .silver-play-button .front svg {
   transform: translateY(-40px);
@@ -563,7 +594,6 @@ em {
 }
 
 @keyframes floatY {
-
   0%,
   100% {
     transform: translateY(-3%);
@@ -575,7 +605,6 @@ em {
 }
 
 @keyframes ringPulse {
-
   0%,
   100% {
     opacity: 0.3;
@@ -738,7 +767,7 @@ em {
 }
 
 .scroll-line::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: var(--white);
@@ -797,7 +826,9 @@ em {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
   animation: fadeIn 0.6s var(--delay, 0s) var(--ease-out) both;
 }
 
@@ -898,7 +929,9 @@ em {
   color: var(--mid);
   border-radius: var(--radius);
   cursor: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -1117,7 +1150,9 @@ em {
   padding: 1.5rem;
   background: var(--subtle);
   cursor: none;
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
   display: flex;
   flex-direction: column;
   height: 380px;
@@ -1298,7 +1333,9 @@ em {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
   background: var(--subtle);
 }
 
@@ -1381,7 +1418,11 @@ em {
 .cta-orb {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 70%
+  );
   animation: orbPulse 8s ease-in-out infinite;
 }
 
@@ -1402,7 +1443,6 @@ em {
 }
 
 @keyframes orbPulse {
-
   0%,
   100% {
     transform: scale(1);
@@ -1491,11 +1531,14 @@ em {
   justify-content: center;
   padding: 0.5rem;
   border-radius: 50%;
-  transition: background 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
   position: relative;
 }
 
-.nav-bell:hover, .nav-bell.active {
+.nav-bell:hover,
+.nav-bell.active {
   background: rgba(255, 255, 255, 0.1);
   color: var(--white);
 }
@@ -1584,7 +1627,7 @@ em {
 }
 
 .notification-item.unread::before {
-  content: '';
+  content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -1689,6 +1732,24 @@ em {
   height: 0;
 }
 
+.profile-edit-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  background: var(--surface-light, rgba(255, 255, 255, 0.02));
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+@media (max-width: 600px) {
+  .profile-edit-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .profile-layout {
   display: grid;
   grid-template-columns: 200px 1fr;
@@ -1763,7 +1824,7 @@ em {
 .profile-avatar-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1778,7 +1839,8 @@ em {
   opacity: 1;
 }
 
-.activity-list, .public-activity-list {
+.activity-list,
+.public-activity-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -1817,7 +1879,11 @@ em {
 }
 
 .public-profile-header {
-  background: linear-gradient(180deg, rgba(40,40,40,0.8) 0%, transparent 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(40, 40, 40, 0.8) 0%,
+    transparent 100%
+  );
   padding: 2rem;
   position: relative;
   border-bottom: 1px solid var(--border);
@@ -1942,7 +2008,7 @@ em {
 
 .modal-divider::before,
 .modal-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
   background: var(--border);
@@ -2294,7 +2360,9 @@ em {
 .reveal {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
 }
 
 .reveal.visible {
@@ -2304,7 +2372,6 @@ em {
 
 /* ─── RESPONSIVE ─── */
 @media (max-width: 900px) {
-
   .about-grid,
   .creator-grid {
     grid-template-columns: 1fr;
@@ -2356,7 +2423,8 @@ em {
     display: flex;
   }
 
-  .admin-nav-item, .admin-logout {
+  .admin-nav-item,
+  .admin-logout {
     width: auto;
     white-space: nowrap;
     margin: 0;
@@ -2419,7 +2487,7 @@ em {
   .admin-stats-grid {
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   }
-  
+
   .admin-stat-card {
     padding: 1rem;
   }
@@ -2443,16 +2511,31 @@ em {
 }
 
 @media (hover: none) and (pointer: coarse), (max-width: 900px) {
-  body, button, a, input, select, textarea, .channel-item, .forum-tab, .forum-post, .modal-close, .profile-tab, .profile-avatar-large, .nav-profile-widget, .activity-item {
+  body,
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  .channel-item,
+  .forum-tab,
+  .forum-post,
+  .modal-close,
+  .profile-tab,
+  .profile-avatar-large,
+  .nav-profile-widget,
+  .activity-item {
     cursor: auto !important;
   }
-  .custom-cursor, .custom-cursor-dot {
+  .custom-cursor,
+  .custom-cursor-dot {
     display: none !important;
   }
 }
 
 @media (max-width: 600px) {
-  .logo-peak, .logo-society {
+  .logo-peak,
+  .logo-society {
     font-size: 1.25rem;
   }
   .logo-tag {
