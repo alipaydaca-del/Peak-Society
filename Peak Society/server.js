@@ -31,7 +31,10 @@ const server = http.createServer((req, res) => {
       SUPABASE_URL: process.env.SUPABASE_URL || '',
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
     })};`;
-    res.writeHead(200, { 'Content-Type': 'application/javascript' });
+    res.writeHead(200, { 
+      'Content-Type': 'application/javascript',
+      'Cache-Control': 'no-cache'
+    });
     res.end(config);
     return;
   }

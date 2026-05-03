@@ -64,7 +64,16 @@ let sbClient = null;
 try {
   // Ensure the browser loaded window.supabase before app.js
   if (window.supabase) {
-    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const url = SUPABASE_URL.trim();
+    const key = SUPABASE_ANON_KEY.trim();
+    sbClient = window.supabase.createClient(url, key, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${key}`,
+          apikey: key
+        }
+      }
+    });
     window.sbClient = sbClient;
     console.log("Supabase initialized successfully.");
   } else {
