@@ -134,7 +134,7 @@ const Store = (() => {
     }
     try {
       localStorage.setItem("ps_" + key, JSON.stringify(val));
-    } catch {}
+    } catch { }
   };
 
   const set = async (key, val, skipDb = false) => {
@@ -341,12 +341,12 @@ const Store = (() => {
               window.dispatchEvent(
                 new CustomEvent("ps_db_updated", { detail: k }),
               );
-            } catch (e) {}
+            } catch (e) { }
           } else if (!data) {
             sbClient
               .from("store")
               .upsert({ id: k, data: JSON.stringify(get(k)) })
-              .then(() => {});
+              .then(() => { });
           }
         });
     });
@@ -414,7 +414,7 @@ const Store = (() => {
               window.dispatchEvent(
                 new CustomEvent("ps_db_updated", { detail: row.id }),
               );
-            } catch (e) {}
+            } catch (e) { }
           }
         },
       )
@@ -600,7 +600,7 @@ const renderNotifications = () => {
               );
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       if (needsRender) renderNotifications();
@@ -1344,15 +1344,14 @@ const renderPostCards = () => {
         <div class="post-category-tag">${categoryLabels[p.category] || p.category}</div>
         <div class="post-title">${sanitize(p.title)}</div>
         <div class="post-excerpt">${sanitize(p.body.slice(0, 180))}${p.body.length > 180 ? "…" : ""}</div>
-        ${
-          p.image
-            ? `
+        ${p.image
+          ? `
         <div class="post-image-container">
           <div class="post-image-wrapper">
             <img src="${p.image}" alt="Attached image" class="post-image-img" loading="lazy" />
           </div>
         </div>`
-            : ""
+          : ""
         }
         <div class="post-footer">
           <span class="post-action">❤️ ${sanitize(String(likeCount))}</span>
@@ -2011,7 +2010,7 @@ document.getElementById("postSubmit")?.addEventListener("click", async () => {
     posts.push(newPost);
     try {
       localStorage.setItem("ps_posts", JSON.stringify(posts));
-    } catch {}
+    } catch { }
   } else {
     errEl.textContent = "Database offline. Cannot post locally.";
     errEl.removeAttribute("hidden");
@@ -2154,20 +2153,19 @@ const openViewPost = (postId) => {
       <h3 style="font-size:1.1rem;margin-bottom:1rem;">Comments</h3>
       <div id="modalCommentsContainer" class="comments-list"></div>
       
-      ${
-        session
-          ? `
+      ${session
+      ? `
         <div class="comment-reply-box" style="margin-top:1.5rem;display:flex;flex-direction:column;gap:0.5rem;">
           <textarea id="modalCommentInput" class="form-input form-textarea" placeholder="Add a comment..." style="min-height:80px;"></textarea>
           <button id="modalCommentSubmit" class="btn-primary btn-sm" style="align-self:flex-end;">Reply</button>
         </div>
       `
-          : `
+      : `
         <div class="sign-in-wall" style="padding:1.5rem;margin-top:1.5rem;">
           <p style="margin:0;font-size:0.9rem;">Sign In to Interact and join the conversation.</p>
         </div>
       `
-      }
+    }
     </div>
 
     <div style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border);color:var(--mid);font-size:0.88rem;text-align:center;">
@@ -2382,8 +2380,8 @@ const openViewPost = (postId) => {
               if (commentsErr) {
                 alert(
                   "Supabase Database Error inserting comment: " +
-                    commentsErr.message +
-                    "\nAre you sure the 'comments' table exists in Supabase?",
+                  commentsErr.message +
+                  "\nAre you sure the 'comments' table exists in Supabase?",
                 );
                 replyBtn.disabled = false;
                 replyBtn.textContent = "Reply";
@@ -2441,7 +2439,7 @@ const openViewPost = (postId) => {
             console.error("Comment Reply Error:", err);
             alert(
               "A local error occurred while posting your comment: " +
-                err.message,
+              err.message,
             );
             replyBtn.disabled = false;
             replyBtn.textContent = "Reply";
@@ -2784,15 +2782,15 @@ const renderAdminPanel = (panel) => {
               <thead><tr><th>Subject</th><th>Author ID</th><th>Date</th>${canPost ? "<th>Actions</th>" : ""}</tr></thead>
               <tbody>
                 ${ann
-                  .map(
-                    (a) => `<tr>
+                .map(
+                  (a) => `<tr>
                     <td>${sanitize(a.subject || a.title)}</td>
                     <td>${sanitize(a.authorId || a.author || "—")}</td>
                     <td>${new Date(a.created_at || a.date).toLocaleDateString()}</td>
                     ${canPost ? `<td><button class="admin-btn danger" data-delete-ann="${sanitize(a.id)}">Delete</button></td>` : ""}
                   </tr>`,
-                  )
-                  .join("")}
+                )
+                .join("")}
               </tbody>
             </table></div>
           `;
@@ -2834,16 +2832,16 @@ const renderAdminPanel = (panel) => {
               <thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Date</th>${canManage ? "<th>Actions</th>" : ""}</tr></thead>
               <tbody>
                 ${posts
-                  .map(
-                    (p) => `<tr>
+                .map(
+                  (p) => `<tr>
                     <td><a href="#" class="admin-view-post" data-post-id="${sanitize(p.id)}" style="color:var(--white);text-decoration:underline;">${sanitize(p.title.slice(0, 40))}${p.title.length > 40 ? "…" : ""}</a></td>
                     <td>${sanitize(p.userId || p.authorName || "—")}</td>
                     <td>${sanitize(categoryLabels[p.category] || p.category)}</td>
                     <td>${new Date(p.created_at || p.date).toLocaleDateString()}</td>
                     ${canManage ? `<td><button class="admin-btn danger" data-delete-post="${sanitize(p.id)}" data-post-image="${sanitize(p.image || "")}">Delete</button></td>` : ""}
                   </tr>`,
-                  )
-                  .join("")}
+                )
+                .join("")}
               </tbody>
             </table></div>
           `;
@@ -2895,8 +2893,8 @@ const renderAdminPanel = (panel) => {
               <tbody>
                 ${reports.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--mid);">No active reports</td></tr>' : ""}
                 ${reports
-                  .map(
-                    (r) => `<tr>
+                .map(
+                  (r) => `<tr>
                   <td style="white-space:nowrap;">${new Date(r.created_at || r.date).toLocaleDateString()}</td>
                   <td>${sanitize(r.reporterName || "Unknown")}</td>
                   <td><a href="#" class="report-view-post" data-post-id="${sanitize(r.postId)}" style="color:var(--white);text-decoration:underline;">${sanitize(r.postTitle ? r.postTitle.slice(0, 30) : "—")}${r.postTitle && r.postTitle.length > 30 ? "…" : ""}</a></td>
@@ -2908,8 +2906,8 @@ const renderAdminPanel = (panel) => {
                     <button class="admin-btn" style="color:var(--mid);" data-report-dismiss="${sanitize(r.id)}">Dismiss</button>
                   </td>
                 </tr>`,
-                  )
-                  .join("")}
+                )
+                .join("")}
               </tbody>
             </table></div>
           `;
@@ -3019,16 +3017,14 @@ const renderAdminPanel = (panel) => {
               <thead><tr><th>Username</th><th>Role</th><th>Joined</th>${canManage ? "<th>Actions</th>" : ""}</tr></thead>
               <tbody id="adminUsersTableBody">
                 ${usersList
-                  .map(
-                    (u) => `<tr data-row-username="${sanitize(u.username)}">
+                .map(
+                  (u) => `<tr data-row-username="${sanitize(u.username)}">
                   <td>${sanitize(u.username)}</td>
                   <td><span class="role-badge role-${u.role}" id="badge-${sanitize(u.username)}">${sanitize(u.role)}</span></td>
                   <td>${sanitize(u.joined)}</td>
-                  ${
-                    canManage && u.username !== session.username
+                  ${canManage && u.username !== session.username
                       ? `<td>
-                    ${
-                      isOwner
+                    ${isOwner
                         ? `<select class="form-input form-select" style="padding:0.2rem 0.4rem;font-size:0.78rem;width:auto;display:inline-block;" data-role-user="${sanitize(u.username)}">
                       <option value="member"${u.role === "member" ? " selected" : ""}>member</option>
                       <option value="staff"${u.role === "staff" ? " selected" : ""}>staff</option>
@@ -3036,16 +3032,16 @@ const renderAdminPanel = (panel) => {
                     </select>
                     <button class="admin-btn" style="margin-left:0.4rem;" data-save-role="${sanitize(u.username)}">Save</button>`
                         : ""
-                    }
+                      }
                     <button class="admin-btn danger" style="margin-left:0.4rem;" data-delete-user="${sanitize(u.username)}">Delete</button>
                   </td>`
                       : canManage
                         ? '<td><span style="color:var(--mid);font-size:0.78rem;">You</span></td>'
                         : ""
-                  }
+                    }
                 </tr>`,
-                  )
-                  .join("")}
+                )
+                .join("")}
               </tbody>
             </table></div>
           `;
@@ -3198,8 +3194,8 @@ const renderAdminPanel = (panel) => {
           <tbody>
             ${lessons.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--mid);">No lessons yet.</td></tr>' : ""}
             ${lessons
-              .map(
-                (l) => `<tr>
+          .map(
+            (l) => `<tr>
               <td>${sanitize(l.step_number?.toString() || "0")}</td>
               <td><span style="color:var(--primary);">${sanitize(l.tab_level)}</span></td>
               <td>${sanitize(l.section)}</td>
@@ -3210,8 +3206,8 @@ const renderAdminPanel = (panel) => {
                 <button class="admin-btn danger del-lesson-btn" data-id="${sanitize(l.id)}">Delete</button>
               </td>
             </tr>`,
-              )
-              .join("")}
+          )
+          .join("")}
           </tbody>
         </table></div>
       `;
@@ -3295,15 +3291,15 @@ const renderAdminPanel = (panel) => {
       const renderLogs = (filterDate) => {
         const filtered = filterDate
           ? allLogs.filter((l) => {
-              const d = new Date(l.date);
-              const lDate =
-                d.getFullYear() +
-                "-" +
-                String(d.getMonth() + 1).padStart(2, "0") +
-                "-" +
-                String(d.getDate()).padStart(2, "0");
-              return lDate === filterDate;
-            })
+            const d = new Date(l.date);
+            const lDate =
+              d.getFullYear() +
+              "-" +
+              String(d.getMonth() + 1).padStart(2, "0") +
+              "-" +
+              String(d.getDate()).padStart(2, "0");
+            return lDate === filterDate;
+          })
           : allLogs;
 
         const countEl = document.getElementById("auditLogCount");
@@ -3544,7 +3540,7 @@ document
       announcements.push(newAnn);
       try {
         localStorage.setItem("ps_announcements", JSON.stringify(announcements));
-      } catch {}
+      } catch { }
     } else {
       errEl.textContent = "Database offline. Cannot post locally.";
       errEl.removeAttribute("hidden");
@@ -3634,19 +3630,19 @@ if (document.getElementById("navProfileWidget")) {
       document.getElementById("profileImageUpload")?.addEventListener(
         "change",
         window.profileUploadCallback ||
-          (window.profileUploadCallback = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const b64 = ev.target.result;
-              const aEl = document.getElementById("profileEditAvatar");
-              aEl.style.backgroundImage = `url('${b64}')`;
-              aEl.innerHTML = innerBase; // Remove the user icon visually when uploaded
-              aEl.dataset.b64 = b64;
-            };
-            reader.readAsDataURL(file);
-          }),
+        (window.profileUploadCallback = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const b64 = ev.target.result;
+            const aEl = document.getElementById("profileEditAvatar");
+            aEl.style.backgroundImage = `url('${b64}')`;
+            aEl.innerHTML = innerBase; // Remove the user icon visually when uploaded
+            aEl.dataset.b64 = b64;
+          };
+          reader.readAsDataURL(file);
+        }),
       );
     }, 50);
 
